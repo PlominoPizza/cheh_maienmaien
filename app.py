@@ -149,22 +149,13 @@ def initialize_db():
             db.create_all()
             logger.info("Tables de base de données créées/vérifiées.")
             
-            # Créer un admin par défaut uniquement si ADMIN_MDP est défini
+            # L'admin est créé automatiquement par les scripts (create_admin.py)
+            # lors du déploiement via la phase "release" du Procfile
             admin_user = User.query.filter_by(username='admin').first()
-            if not admin_user:
-                if not app.config['ADMIN_MDP']:
-                    logger.warning("ADMIN_MDP non défini. L'admin ne sera pas créé automatiquement.")
-                    logger.warning("Utilisez 'python update_admin_password.py' pour créer l'admin manuellement.")
-                else:
-                    admin_user = User(
-                        username='admin',
-                        email='admin@chez-meme.com',
-                        password_hash=generate_password_hash(app.config['ADMIN_MDP']),
-                        is_admin=True
-                    )
-                    db.session.add(admin_user)
-                    db.session.commit()
-                    logger.info("Admin créé depuis ADMIN_MDP")
+            if admin_user:
+                logger.info("Utilisateur admin trouvé dans la base de données")
+            else:
+                logger.info("Utilisateur admin sera créé lors de la phase release")
             
             # Ajouter des activités par défaut
             if Activity.query.count() == 0:
