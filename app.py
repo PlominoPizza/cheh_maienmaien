@@ -3,19 +3,55 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-from functools import wraps
 import secrets
+from functools import wraps
+from werkzeug.utils import secure_filename
+from PIL import Image
+import uuid
+import logging
+
+# Configuration du logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Configuration de sécurité
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chez-meme-super-secret-key-2024-development-only')
+# Le mot de passe admin doit être défini dans les variables d'environnement
+# En développement local, voir .env ou utiliser update_admin_password.py
+app.config['ADMIN_MDP'] = os.environ.get('ADMIN_MDP')
+if not app.config['ADMIN_MDP']:
+    logger.warning("ADMIN_MDP n'est pas défini. Utilisez update_admin_password.py pour configurer l'admin.")
 
 # Configuration de la base de données
 # Supporte SQLite en local et PostgreSQL en production
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///chez_meme.db')
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Optimisations pour la production
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+    'pool_timeout': 20,
+    'max_overflow': 0,
+    'pool_size': 10
+}
+
+# Configuration pour le téléversement d'images
+UPLOAD_FOLDER = 'static/uploads/images'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
+
+# Créer le dossier de téléversement s'il n'existe pas
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
 
@@ -47,7 +83,34 @@ class Activity(db.Model):
     image_url = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Configuration email - DÉSACTIVÉE
+class Photo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(200), nullable=False)
+    caption = db.Column(db.String(200))
+    display_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Fonctions utilitaires pour les images
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def resize_image(image_path, max_width=800, max_height=600):
+    """Redimensionne une image en gardant les proportions"""
+    try:
+        with Image.open(image_path) as img:
+            # Calculer les nouvelles dimensions
+            ratio = min(max_width/img.width, max_height/img.height)
+            new_size = (int(img.width * ratio), int(img.height * ratio))
+            
+            # Redimensionner
+            resized_img = img.resize(new_size, Image.Resampling.LANCZOS)
+            
+            # Sauvegarder en écrasant l'original
+            resized_img.save(image_path, optimize=True, quality=85)
+            return True
+    except Exception as e:
+        logger.error(f"Erreur lors du redimensionnement: {e}")
+        return False
 
 # Décorateur pour vérifier l'authentification admin
 def admin_required(f):
@@ -59,6 +122,19 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Gestionnaire d'erreurs global
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    logger.error(f"Erreur serveur: {error}")
+    flash('Une erreur est survenue. Veuillez réessayer.', 'error')
+    return redirect(url_for('index'))
+
+@app.errorhandler(404)
+def not_found_error(error):
+    logger.warning(f"Page non trouvée: {request.path}")
+    return "<h1>404 - Page non trouvée</h1><p><a href='/'>Retour à l'accueil</a></p>", 404
+
 # Routes principales
 # Initialisation automatique de la base de données au démarrage
 _first_request_done = False
@@ -68,68 +144,77 @@ def initialize_db():
     """Crée les tables et initialise les données par défaut au premier démarrage"""
     global _first_request_done
     if not _first_request_done:
-        _first_request_done = True
-        db.create_all()
-        print("Tables de base de données créées/vérifiées.")
-        
-        # Créer un admin par défaut
-        admin_user = User.query.filter_by(username='admin').first()
-        if not admin_user:
-            admin_user = User(
-                username='admin',
-                email='admin@chez-meme.com',
-                password_hash=generate_password_hash('admin123'),
-                is_admin=True
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            print("Admin par défaut créé: username='admin', password='admin123'")
-        
-        # Ajouter des activités par défaut
-        if Activity.query.count() == 0:
-            activities = [
-                Activity(
-                    name='Plage de la Côte Sauvage',
-                    description='Magnifique plage pour le surf avec des vagues parfaites pour débuter',
-                    distance='5 km',
-                    difficulty='Facile',
-                    activity_type='surf',
-                    image_url='/static/images/surf.jpg'
-                ),
-                Activity(
-                    name='Forêt de Fontainebleau',
-                    description='Parcours VTT dans les sentiers forestiers avec des dénivelés variés',
-                    distance='15 km',
-                    difficulty='Intermédiaire',
-                    activity_type='vtt',
-                    image_url='/static/images/vtt.jpg'
-                ),
-                Activity(
-                    name='Sentier des Crêtes',
-                    description='Randonnée panoramique avec vue sur la vallée et les montagnes',
-                    distance='8 km',
-                    difficulty='Facile',
-                    activity_type='randonnee',
-                    image_url='/static/images/randonnee.jpg'
-                ),
-                Activity(
-                    name='Rocher de l\'Aigle',
-                    description='Site d\'escalade réputé avec des voies de tous niveaux',
-                    distance='12 km',
-                    difficulty='Difficile',
-                    activity_type='escalade',
-                    image_url='/static/images/escalade.jpg'
-                )
-            ]
+        try:
+            _first_request_done = True
+            db.create_all()
+            logger.info("Tables de base de données créées/vérifiées.")
             
-            for activity in activities:
-                db.session.add(activity)
-            db.session.commit()
-            print("Activités par défaut ajoutées.")
+            # Créer un admin par défaut uniquement si ADMIN_MDP est défini
+            admin_user = User.query.filter_by(username='admin').first()
+            if not admin_user:
+                if not app.config['ADMIN_MDP']:
+                    logger.warning("ADMIN_MDP non défini. L'admin ne sera pas créé automatiquement.")
+                    logger.warning("Utilisez 'python update_admin_password.py' pour créer l'admin manuellement.")
+                else:
+                    admin_user = User(
+                        username='admin',
+                        email='admin@chez-meme.com',
+                        password_hash=generate_password_hash(app.config['ADMIN_MDP']),
+                        is_admin=True
+                    )
+                    db.session.add(admin_user)
+                    db.session.commit()
+                    logger.info("Admin créé depuis ADMIN_MDP")
+            
+            # Ajouter des activités par défaut
+            if Activity.query.count() == 0:
+                activities = [
+                    Activity(
+                        name='Plage de la Côte Sauvage',
+                        description='Magnifique plage pour le surf avec des vagues parfaites pour débuter',
+                        distance='5 km',
+                        difficulty='Facile',
+                        activity_type='surf',
+                        image_url='/static/images/surf.jpg'
+                    ),
+                    Activity(
+                        name='Forêt de Fontainebleau',
+                        description='Parcours VTT dans les sentiers forestiers avec des dénivelés variés',
+                        distance='15 km',
+                        difficulty='Intermédiaire',
+                        activity_type='vtt',
+                        image_url='/static/images/vtt.jpg'
+                    ),
+                    Activity(
+                        name='Sentier des Crêtes',
+                        description='Randonnée panoramique avec vue sur la vallée et les montagnes',
+                        distance='8 km',
+                        difficulty='Facile',
+                        activity_type='randonnee',
+                        image_url='/static/images/randonnee.jpg'
+                    ),
+                    Activity(
+                        name='Rocher de l\'Aigle',
+                        description='Site d\'escalade réputé avec des voies de tous niveaux',
+                        distance='12 km',
+                        difficulty='Difficile',
+                        activity_type='escalade',
+                        image_url='/static/images/escalade.jpg'
+                    )
+                ]
+                
+                for activity in activities:
+                    db.session.add(activity)
+                db.session.commit()
+                logger.info("Activités par défaut ajoutées.")
+        except Exception as e:
+            logger.error(f"Erreur lors de l'initialisation: {e}")
+            raise
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    photos = Photo.query.order_by(Photo.display_order, Photo.created_at).all()
+    return render_template('index.html', photos=photos)
 
 @app.route('/calendrier')
 def calendrier():
@@ -167,7 +252,7 @@ def reserver():
             
             # Vérifier que les dates sont valides
             if start_date >= end_date:
-                return jsonify({'success': False, 'message': 'La date de fin doit être après la date de début !'})
+                return jsonify({'success': False, 'message': 'Le jour de départ doit être après le jour d\'arrivée !'})
             
             if start_date < date.today():
                 return jsonify({'success': False, 'message': 'Impossible de réserver dans le passé !'})
@@ -175,8 +260,8 @@ def reserver():
             # Vérifier les conflits avec les réservations approuvées
             conflicting = Reservation.query.filter(
                 Reservation.status == 'approved',
-                Reservation.start_date <= end_date,
-                Reservation.end_date >= start_date
+                Reservation.start_date < end_date,
+                Reservation.end_date > start_date
             ).first()
             
             if conflicting:
@@ -185,22 +270,23 @@ def reserver():
             # Générer un token unique
             token = secrets.token_urlsafe(32)
             
-            # Créer la réservation
+            # Créer la réservation directement approuvée
             reservation = Reservation(
                 start_date=start_date,
                 end_date=end_date,
                 guest_name=request.form['guest_name'],
-                status='pending',
+                status='approved',
                 token=token
             )
             
             db.session.add(reservation)
             db.session.commit()
             
-            # Réservation créée avec succès
-            return jsonify({'success': True, 'message': 'Demande de réservation envoyée avec succès !'})
+            logger.info(f"Nouvelle réservation créée par {request.form['guest_name']}")
+            return jsonify({'success': True, 'message': 'Réservation confirmée ! Elle apparaît maintenant dans le calendrier.'})
                 
         except Exception as e:
+            logger.error(f"Erreur lors de la réservation: {e}")
             return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
     
     return render_template('reserver.html')
@@ -208,31 +294,250 @@ def reserver():
 @app.route('/admin')
 @admin_required
 def admin():
-    pending_reservations = Reservation.query.filter_by(status='pending').order_by(Reservation.created_at.desc()).all()
     all_reservations = Reservation.query.order_by(Reservation.created_at.desc()).all()
-    return render_template('admin.html', 
-                         pending_reservations=pending_reservations,
-                         all_reservations=all_reservations)
+    return render_template('admin_dashboard.html', reservations=all_reservations)
 
-@app.route('/approve/<token>')
-def approve_reservation(token):
-    reservation = Reservation.query.filter_by(token=token).first()
-    if reservation and reservation.status == 'pending':
-        reservation.status = 'approved'
-        db.session.commit()
-        return f"<h1>✅ Réservation approuvée !</h1><p>La réservation de {reservation.guest_name} du {reservation.start_date} au {reservation.end_date} a été validée.</p>"
-    else:
-        return "<h1>❌ Erreur</h1><p>Réservation introuvable ou déjà traitée.</p>"
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        user = User.query.filter_by(username=username).first()
+        
+        if user and check_password_hash(user.password_hash, password) and user.is_admin:
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['is_admin'] = True
+            flash('Connexion réussie !', 'success')
+            logger.info(f"Connexion admin: {username}")
+            return redirect(url_for('admin'))
+        else:
+            flash('Nom d\'utilisateur ou mot de passe incorrect.', 'error')
+            logger.warning(f"Tentative de connexion échouée pour: {username}")
+    
+    return render_template('admin_login.html')
 
-@app.route('/reject/<token>')
-def reject_reservation(token):
-    reservation = Reservation.query.filter_by(token=token).first()
-    if reservation and reservation.status == 'pending':
-        reservation.status = 'rejected'
+@app.route('/admin/add', methods=['GET', 'POST'])
+@admin_required
+def admin_add_reservation():
+    if request.method == 'POST':
+        try:
+            start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%d').date()
+            end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d').date()
+            
+            if start_date >= end_date:
+                return jsonify({'success': False, 'message': 'Le jour de départ doit être après le jour d\'arrivée !'})
+            
+            if start_date < date.today():
+                return jsonify({'success': False, 'message': 'Impossible de réserver dans le passé !'})
+            
+            # Vérifier les conflits
+            conflicting = Reservation.query.filter(
+                Reservation.status == 'approved',
+                Reservation.start_date < end_date,
+                Reservation.end_date > start_date
+            ).first()
+            
+            if conflicting:
+                return jsonify({'success': False, 'message': f'Ces dates sont déjà réservées par {conflicting.guest_name} !'})
+            
+            token = secrets.token_urlsafe(32)
+            
+            reservation = Reservation(
+                start_date=start_date,
+                end_date=end_date,
+                guest_name=request.form['guest_name'],
+                status=request.form['status'],
+                token=token
+            )
+            
+            db.session.add(reservation)
+            db.session.commit()
+            
+            logger.info(f"Réservation admin créée pour {request.form['guest_name']}")
+            return jsonify({'success': True, 'message': 'Réservation créée avec succès !'})
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la création de réservation admin: {e}")
+            return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+    
+    return render_template('admin_add.html')
+
+@app.route('/admin/edit/<int:reservation_id>', methods=['POST'])
+@admin_required
+def admin_edit_reservation(reservation_id):
+    try:
+        reservation = Reservation.query.get_or_404(reservation_id)
+        
+        start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%d').date()
+        end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d').date()
+        
+        if start_date >= end_date:
+            return jsonify({'success': False, 'message': 'Le jour de départ doit être après le jour d\'arrivée !'})
+        
+        # Vérifier les conflits (en excluant la réservation actuelle)
+        conflicting = Reservation.query.filter(
+            Reservation.id != reservation_id,
+            Reservation.status == 'approved',
+            Reservation.start_date < end_date,
+            Reservation.end_date > start_date
+        ).first()
+        
+        if conflicting:
+            return jsonify({'success': False, 'message': f'Ces dates sont déjà réservées par {conflicting.guest_name} !'})
+        
+        reservation.guest_name = request.form['guest_name']
+        reservation.start_date = start_date
+        reservation.end_date = end_date
+        reservation.status = request.form['status']
+        
         db.session.commit()
-        return f"<h1>❌ Réservation rejetée</h1><p>La réservation de {reservation.guest_name} du {reservation.start_date} au {reservation.end_date} a été rejetée.</p>"
-    else:
-        return "<h1>❌ Erreur</h1><p>Réservation introuvable ou déjà traitée.</p>"
+        
+        logger.info(f"Réservation {reservation_id} modifiée")
+        return jsonify({'success': True, 'message': 'Réservation modifiée avec succès !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la modification de réservation: {e}")
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+@app.route('/admin/delete/<int:reservation_id>', methods=['DELETE'])
+@admin_required
+def admin_delete_reservation(reservation_id):
+    try:
+        reservation = Reservation.query.get_or_404(reservation_id)
+        guest_name = reservation.guest_name
+        
+        db.session.delete(reservation)
+        db.session.commit()
+        
+        logger.info(f"Réservation supprimée: {guest_name}")
+        return jsonify({'success': True, 'message': f'Réservation de {guest_name} supprimée avec succès !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression de réservation: {e}")
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+# Routes pour la gestion des photos
+@app.route('/admin/photos')
+@admin_required
+def admin_photos():
+    photos = Photo.query.order_by(Photo.display_order, Photo.created_at).all()
+    return render_template('admin_photos.html', photos=photos)
+
+@app.route('/admin/photos/upload', methods=['POST'])
+@admin_required
+def admin_upload_photos():
+    try:
+        if 'photos' not in request.files:
+            return jsonify({'success': False, 'message': 'Aucun fichier sélectionné'})
+        
+        files = request.files.getlist('photos')
+        captions = request.form.getlist('captions')
+        
+        if len(files) > 10:
+            return jsonify({'success': False, 'message': 'Maximum 10 photos autorisées'})
+        
+        uploaded_count = 0
+        
+        for i, file in enumerate(files):
+            if file and file.filename and allowed_file(file.filename):
+                # Générer un nom de fichier unique
+                filename = secure_filename(file.filename)
+                name, ext = os.path.splitext(filename)
+                unique_filename = f"{uuid.uuid4().hex}{ext}"
+                
+                # Sauvegarder le fichier
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+                file.save(file_path)
+                
+                # Redimensionner l'image
+                resize_image(file_path)
+                
+                # Récupérer la légende correspondante
+                caption = captions[i] if i < len(captions) else ""
+                
+                # Créer l'entrée en base de données
+                photo = Photo(
+                    filename=unique_filename,
+                    caption=caption,
+                    display_order=Photo.query.count() + uploaded_count
+                )
+                
+                db.session.add(photo)
+                uploaded_count += 1
+        
+        db.session.commit()
+        
+        logger.info(f"{uploaded_count} photo(s) téléversée(s)")
+        return jsonify({
+            'success': True, 
+            'message': f'{uploaded_count} photo(s) téléversée(s) avec succès !'
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur lors du téléversement de photos: {e}")
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+@app.route('/admin/photos/delete/<int:photo_id>', methods=['DELETE'])
+@admin_required
+def admin_delete_photo(photo_id):
+    try:
+        photo = Photo.query.get_or_404(photo_id)
+        
+        # Supprimer le fichier physique
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo.filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # Supprimer de la base de données
+        db.session.delete(photo)
+        db.session.commit()
+        
+        logger.info(f"Photo {photo_id} supprimée")
+        return jsonify({'success': True, 'message': 'Photo supprimée avec succès !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression de photo: {e}")
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+@app.route('/admin/photos/update-caption/<int:photo_id>', methods=['POST'])
+@admin_required
+def admin_update_caption(photo_id):
+    try:
+        photo = Photo.query.get_or_404(photo_id)
+        photo.caption = request.form.get('caption', '')
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Légende mise à jour !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la mise à jour de légende: {e}")
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+@app.route('/admin/photos/update-all', methods=['POST'])
+@admin_required
+def admin_update_all_photos():
+    """Met à jour toutes les photos : légendes et ordre"""
+    try:
+        data = request.get_json()
+        updates = data.get('updates', [])
+        
+        for update in updates:
+            photo = db.session.get(Photo, update['id'])
+            if photo:
+                photo.caption = update.get('caption', '')
+                photo.display_order = update.get('display_order', 0)
+        
+        db.session.commit()
+        
+        logger.info(f"Photos mises à jour : {len(updates)} modification(s)")
+        return jsonify({'success': True, 'message': f'{len(updates)} photo(s) mise(s) à jour avec succès !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la mise à jour globale: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
 
 @app.route('/admin/approve/<int:reservation_id>')
 @admin_required
@@ -269,7 +574,7 @@ def login():
         else:
             flash('Nom d\'utilisateur ou mot de passe incorrect.', 'error')
     
-    return render_template('login.html')
+    return render_template('admin_login.html')
 
 @app.route('/logout')
 def logout():
@@ -289,4 +594,10 @@ def api_reservations():
     } for r in reservations])
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Configuration pour le développement
+    debug_mode = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'  # Debug activé par défaut en local
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')
+    port = int(os.environ.get('FLASK_PORT', 5000))
+
+    logger.info(f"Démarrage du serveur Flask - Debug: {debug_mode}")
+    app.run(debug=debug_mode, host=host, port=port)

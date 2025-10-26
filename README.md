@@ -1,128 +1,86 @@
-# Chez Mémé - Site de Réservation de Collocation
+# 🍵 Chez Mémé - Système de Réservation
 
-## 🏠 Description
+Application web Flask pour gérer les réservations d'un appartement à Biarritz.
 
-Site web pour la gestion des réservations de la chambre d'amis dans la collocation "Chez Mémé". 
-Un projet fun et moderne pour faire marrer les amis tout en gérant efficacement les réservations !
+## 🚀 Déploiement Rapide sur Render
 
-## ✨ Fonctionnalités
+### 1. Configuration Render
 
-- **📅 Calendrier interactif** : Visualisation des disponibilités et réservations
-- **🛏️ Système de réservation** : Demande de réservation avec validation admin
-- **👑 Interface admin** : Gestion des réservations et validation
-- **🏠 Présentation de l'appart** : Galerie photos et plan interactif
-- **🏃‍♂️ Activités locales** : Surf, VTT, randonnée, escalade
-- **📱 Design responsive** : Compatible mobile et desktop
+Créez un nouveau **Web Service** sur Render et :
 
-## 🚀 Installation
+1. **Connectez votre dépôt Git**
+2. **Définissez les variables d'environnement** :
+   - `ADMIN_MDP` : Votre mot de passe admin
+   - `SECRET_KEY` : Une clé secrète aléatoire (générez-en une avec `python -c "import secrets; print(secrets.token_hex(32))"`)
+   - `DATABASE_URL` : Fournie automatiquement par Render (PostgreSQL)
+   - `FLASK_DEBUG` : `False` (pour la production)
+   - `FLASK_HOST` : `0.0.0.0`
+   - `FLASK_PORT` : `5000`
 
-### Prérequis
-- Python 3.8+
-- pip (gestionnaire de paquets Python)
-
-### Installation des dépendances
+3. **Build Command** :
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt && python seed_data.py
 ```
 
-### Lancement du serveur
+4. **Start Command** :
 ```bash
+gunicorn -c gunicorn_config.py app:app
+```
+
+### 2. Accès Admin
+
+- **URL** : `https://votre-app.onrender.com/`
+- **Identifiant** : `admin`
+- **Mot de passe** : Celui défini dans `ADMIN_MDP`
+
+### 3. Gestion Locale
+
+Pour le développement local :
+
+```bash
+# Installation
+pip install -r requirements.txt
+
+# Configuration admin (optionnel)
+python update_admin_password.py
+
+# Lancement
 python app.py
 ```
 
-Le site sera accessible à l'adresse : `http://localhost:5000`
-
-## 🔑 Connexion Admin
-
-- **Utilisateur** : `admin`
-- **Mot de passe** : `admin123`
-
-⚠️ **Important** : Changez ces identifiants en production !
-
-## 📁 Structure du projet
+## 📁 Structure
 
 ```
-chez_meme/
-├── app.py                 # Application Flask principale
+cheh_maienmaien/
+├── app.py                  # Application Flask principale
+├── seed_data.py           # Initialisation de la base de données
+├── gunicorn_config.py     # Configuration Gunicorn (production)
 ├── requirements.txt       # Dépendances Python
-├── chez_meme.db          # Base de données SQLite (créée automatiquement)
-├── templates/            # Templates HTML
-│   ├── base.html
-│   ├── index.html
-│   ├── calendrier.html
-│   ├── reserver.html
-│   ├── appartement.html
-│   ├── activites.html
-│   ├── admin.html
-│   └── login.html
-└── static/               # Assets statiques
-    ├── css/
-    │   └── style.css
-    ├── js/
-    │   ├── main.js
-    │   ├── calendar.js
-    │   ├── reservation.js
-    │   ├── apartment.js
-    │   ├── activities.js
-    │   └── admin.js
-    └── images/           # Images (à ajouter)
+├── render.yaml            # Configuration Render
+├── Procfile               # Commande de démarrage
+├── static/                # Fichiers statiques (CSS, JS, images)
+└── templates/             # Templates HTML
 ```
 
-## 🎯 Utilisation
+## 🛠️ Fonctionnalités
 
-### Pour les invités
-1. Consultez le calendrier pour voir les disponibilités
-2. Cliquez sur "Réserver" pour faire une demande
-3. Remplissez le formulaire avec vos informations
-4. Attendez la validation de l'admin
+- ✅ Réservation en ligne avec calendrier
+- ✅ Gestion admin des réservations
+- ✅ Gestion des photos de la maison
+- ✅ Calendrier de disponibilités
+- ✅ Protection contre les conflits de dates
 
-### Pour l'admin
-1. Connectez-vous avec les identifiants admin
-2. Consultez les réservations en attente
-3. Approuvez ou rejetez les demandes
-4. Gérez le calendrier et les activités
+## 🔐 Sécurité
 
-## 🛠️ Personnalisation
+- Les mots de passe sont hashés avec Werkzeug
+- Session sécurisée avec `SECRET_KEY`
+- Protection contre l'injection SQL (SQLAlchemy)
+- Les uploads sont sécurisés (validation, nom unique)
 
-### Modifier les activités
-Éditez le fichier `app.py` dans la fonction `init_db()` pour ajouter/modifier les activités.
+## 📧 Contact
 
-### Changer les couleurs
-Modifiez les variables CSS dans `static/css/style.css` :
-```css
-:root {
-    --primary-color: #6366f1;    /* Couleur principale */
-    --secondary-color: #8b5cf6;  /* Couleur secondaire */
-    --accent-color: #06b6d4;     /* Couleur d'accent */
-}
-```
+chez.meme.officiel@gmail.com
 
-### Ajouter des images
-Placez vos images dans le dossier `static/images/` et mettez à jour les références dans les templates.
+## 📝 License
 
-## 🔧 Développement
-
-### Base de données
-La base de données SQLite est créée automatiquement au premier lancement.
-Pour la réinitialiser, supprimez le fichier `chez_meme.db`.
-
-### Mode debug
-Le serveur Flask est lancé en mode debug par défaut pour faciliter le développement.
-
-### Logs
-Les erreurs et informations sont affichées dans la console.
-
-## 📝 Notes
-
-- Le site est optimisé pour être fun et décontracté
-- Tous les textes sont en français
-- Le design est moderne et responsive
-- Les animations sont fluides et engageantes
-
-## 🎉 Amusez-vous bien !
-
-Ce projet a été créé avec ❤️ pour faire marrer vos amis tout en gérant efficacement votre collocation.
-
----
-
-*"Chez Mémé, où l'ambiance est toujours au rendez-vous !"* 🏠✨
+Projet privé - Tous droits réservés

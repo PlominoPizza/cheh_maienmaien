@@ -67,7 +67,7 @@
             </thead>
             <tbody>
                 {% for reservation in reservations %}
-                <tr data-status="{{ reservation.status }}">
+                <tr data-id="{{ reservation.id }}" data-status="{{ reservation.status }}" data-name="{{ reservation.guest_name }}" data-start="{{ reservation.start_date.strftime('%Y-%m-%d') }}" data-end="{{ reservation.end_date.strftime('%Y-%m-%d') }}">
                     <td>{{ reservation.guest_name }}</td>
                     <td>{{ reservation.start_date.strftime('%d/%m/%Y') }}</td>
                     <td>{{ reservation.end_date.strftime('%d/%m/%Y') }}</td>
@@ -388,12 +388,22 @@ function filterTable() {
 function editReservation(id) {
     // Récupérer les données de la réservation
     const row = document.querySelector(`tr[data-id="${id}"]`);
-    if (!row) return;
+    if (!row) {
+        console.error('Réservation introuvable avec id:', id);
+        return;
+    }
     
+    // Récupérer les données depuis les attributs data
     document.getElementById('edit-id').value = id;
-    document.getElementById('edit-name').value = row.cells[0].textContent;
-    document.getElementById('edit-start').value = row.cells[1].textContent;
-    document.getElementById('edit-end').value = row.cells[2].textContent;
+    document.getElementById('edit-name').value = row.getAttribute('data-name');
+    
+    const startDate = row.getAttribute('data-start');
+    const endDate = row.getAttribute('data-end');
+    
+    document.getElementById('edit-start').value = startDate;
+    document.getElementById('edit-start').min = '2020-01-01'; // Date minimum raisonnable
+    document.getElementById('edit-end').value = endDate;
+    document.getElementById('edit-end').min = startDate; // La date de fin doit être après la date de début
     
     const status = row.getAttribute('data-status');
     document.getElementById('edit-status').value = status;
@@ -436,12 +446,36 @@ window.onclick = function(event) {
 // Fermer avec la croix
 document.querySelector('.close').onclick = closeModal;
 
+// Validation des dates
+const editStart = document.getElementById('edit-start');
+const editEnd = document.getElementById('edit-end');
+
+editStart.addEventListener('change', function() {
+    editEnd.min = this.value;
+});
+
+editEnd.addEventListener('change', function() {
+    if (this.value <= editStart.value) {
+        alert('Le jour de départ doit être après le jour d\'arrivée');
+        this.value = '';
+    }
+});
+
 // Soumission du formulaire de modification
 document.getElementById('editForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
     const formData = new FormData(this);
     const id = formData.get('id');
+    
+    // Validation
+    const start = document.getElementById('edit-start').value;
+    const end = document.getElementById('edit-end').value;
+    
+    if (start >= end) {
+        alert('Le jour de départ doit être après le jour d\'arrivée !');
+        return;
+    }
     
     fetch(`/admin/edit/${id}`, {
         method: 'POST',
@@ -450,6 +484,7 @@ document.getElementById('editForm').addEventListener('submit', function(e) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            alert('Réservation modifiée avec succès !');
             closeModal();
             location.reload();
         } else {

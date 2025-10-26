@@ -47,10 +47,16 @@ instance/
 .DS_Store
 Thumbs.db
 
-# Uploads
-static/uploads/
+# Uploads: Images commitées pour déploiement automatique
+# Les images existantes dans static/uploads/images/ sont nécessaires
+# Ne pas exclure ce dossier du Git
+# static/uploads/
+
+# Exclure uniquement les futurs uploads utilisateur (en production)
+# static/uploads/temp/
 
 # Flask session
 flask_session/
 
 
+.env*

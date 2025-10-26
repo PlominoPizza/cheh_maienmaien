@@ -61,6 +61,20 @@ body {
     height: 70px;
 }
 
+.nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.logo-img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    border-radius: 50%;
+    border: 2px solid var(--primary-color);
+}
+
 .nav-logo h2 {
     color: var(--primary-color);
     font-weight: bold;
@@ -1274,6 +1288,17 @@ section {
 .footer-section h4 {
     margin-bottom: 1rem;
     color: var(--white);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-logo {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    border-radius: 50%;
+    border: 2px solid var(--white);
 }
 
 .footer-section p {

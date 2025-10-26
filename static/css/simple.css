@@ -161,10 +161,23 @@
 
 .photos-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
     gap: 30px;
     max-width: 1200px;
     margin: 0 auto;
+    padding: 0 20px;
+}
+
+.photos-container {
+    margin-top: 50px;
+    margin-bottom: 50px;
+}
+
+.photos-container h3 {
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 1.8rem;
+    color: var(--primary-color);
 }
 
 .photo-placeholder {
@@ -196,13 +209,11 @@
 
 /* Photos réelles */
 .photo-item {
-    aspect-ratio: 4/3;
+    position: relative;
     border-radius: 15px;
     overflow: hidden;
     box-shadow: 0 10px 25px rgba(0,0,0,0.15);
     transition: transform 0.3s ease;
-    position: relative;
-    min-height: 300px;
 }
 
 .photo-item:hover {
@@ -210,8 +221,10 @@
 }
 
 .photo-item img {
+    display: block;
     width: 100%;
-    height: 100%;
+    height: auto;
+    min-height: 400px;
     object-fit: cover;
 }
 
@@ -436,10 +449,11 @@
     .photos-grid {
         grid-template-columns: 1fr;
         gap: 20px;
+        padding: 0 15px;
     }
     
-    .photo-item {
-        min-height: 250px;
+    .photo-item img {
+        min-height: 300px;
     }
     
     .reservation-form {

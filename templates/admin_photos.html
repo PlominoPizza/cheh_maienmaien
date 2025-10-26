@@ -42,12 +42,28 @@
 
     <!-- Section photos existantes -->
     <div class="photos-section">
-        <h2>Photos actuelles ({{ photos|length }}/10)</h2>
+        <div class="section-header">
+            <h2>Photos actuelles ({{ photos|length }}/10)</h2>
+            {% if photos %}
+            <button onclick="saveAllChanges()" class="btn btn-primary" id="saveBtn" style="display: none;">
+                <i class="fas fa-save"></i> Enregistrer les modifications
+            </button>
+            {% endif %}
+        </div>
         
         {% if photos %}
-        <div class="photos-grid">
+        <div id="photosContainer" class="photos-list">
             {% for photo in photos %}
-            <div class="photo-card" data-photo-id="{{ photo.id }}">
+            <div class="photo-item" data-photo-id="{{ photo.id }}" data-order="{{ photo.display_order }}">
+                <div class="photo-controls">
+                    <button onclick="movePhoto({{ photo.id }}, 'up')" class="btn-move" title="Déplacer vers le haut">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                    <button onclick="movePhoto({{ photo.id }}, 'down')" class="btn-move" title="Déplacer vers le bas">
+                        <i class="fas fa-arrow-down"></i>
+                    </button>
+                    <div class="photo-number">{{ loop.index }}</div>
+                </div>
                 <div class="photo-image">
                     <img src="{{ url_for('static', filename='uploads/images/' + photo.filename) }}" 
                          alt="{{ photo.caption or 'Photo' }}">
@@ -61,8 +77,9 @@
                     <input type="text" 
                            value="{{ photo.caption or '' }}" 
                            placeholder="Ajouter une légende..."
-                           onchange="updateCaption({{ photo.id }}, this.value)"
-                           class="caption-input">
+                           oninput="markChanged({{ photo.id }})"
+                           class="caption-input" 
+                           data-original="{{ photo.caption or '' }}">
                 </div>
             </div>
             {% endfor %}
@@ -168,27 +185,81 @@
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
-.photos-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+.photos-list {
+    display: flex;
+    flex-direction: column;
     gap: 20px;
     margin-top: 20px;
 }
 
-.photo-card {
+.photo-item {
+    display: flex;
+    gap: 20px;
+    background: white;
     border-radius: 10px;
-    overflow: hidden;
+    padding: 15px;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    transition: transform 0.3s ease;
+    transition: all 0.3s ease;
+    border-left: 4px solid transparent;
 }
 
-.photo-card:hover {
-    transform: translateY(-5px);
+.photo-item:hover {
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.photo-item.changed {
+    border-left-color: #667eea;
+    background: #f8f9ff;
+}
+
+.photo-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 60px;
+}
+
+.btn-move {
+    background: #667eea;
+    color: white;
+    border: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-move:hover {
+    background: #5a6fd8;
+    transform: scale(1.1);
+}
+
+.btn-move:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.photo-number {
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #667eea;
+    min-height: 25px;
+    display: flex;
+    align-items: center;
 }
 
 .photo-image {
     position: relative;
+    width: 200px;
     height: 200px;
+    flex-shrink: 0;
+    border-radius: 10px;
     overflow: hidden;
 }
 
@@ -206,13 +277,14 @@
     transition: opacity 0.3s ease;
 }
 
-.photo-card:hover .photo-overlay {
+.photo-item:hover .photo-overlay {
     opacity: 1;
 }
 
 .photo-caption {
-    padding: 15px;
-    background: white;
+    flex: 1;
+    display: flex;
+    align-items: center;
 }
 
 .caption-input {
@@ -372,25 +444,97 @@ function deletePhoto(photoId) {
     }
 }
 
-function updateCaption(photoId, caption) {
-    const formData = new FormData();
-    formData.append('caption', caption);
+function markChanged(photoId) {
+    const saveBtn = document.getElementById('saveBtn');
+    const photoItem = document.querySelector(`[data-photo-id="${photoId}"]`);
     
-    fetch(`/admin/photos/update-caption/${photoId}`, {
+    photoItem.classList.add('changed');
+    saveBtn.style.display = 'block';
+}
+
+function movePhoto(photoId, direction) {
+    const container = document.getElementById('photosContainer');
+    const items = Array.from(container.children);
+    const currentIndex = items.findIndex(item => item.dataset.photoId == photoId);
+    
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    
+    if (newIndex < 0 || newIndex >= items.length) return;
+    
+    // Échanger les éléments
+    container.insertBefore(items[currentIndex], items[newIndex]);
+    
+    // Mettre à jour les numéros
+    updatePhotoNumbers();
+    markChanged(photoId);
+}
+
+function updatePhotoNumbers() {
+    const items = document.querySelectorAll('.photo-item');
+    items.forEach((item, index) => {
+        item.querySelector('.photo-number').textContent = index + 1;
+        
+        // Désactiver les boutons si nécessaire
+        const upBtn = item.querySelector('.btn-move');
+        const downBtn = item.querySelectorAll('.btn-move')[1];
+        
+        if (upBtn) {
+            upBtn.disabled = index === 0;
+        }
+        if (downBtn) {
+            downBtn.disabled = index === items.length - 1;
+        }
+    });
+    
+    // Afficher le bouton d'enregistrement
+    document.getElementById('saveBtn').style.display = 'block';
+}
+
+function saveAllChanges() {
+    const items = document.querySelectorAll('.photo-item');
+    const updates = [];
+    
+    items.forEach((item, index) => {
+        const photoId = item.dataset.photoId;
+        const captionInput = item.querySelector('.caption-input');
+        const original = captionInput.dataset.original;
+        const current = captionInput.value;
+        
+        updates.push({
+            id: photoId,
+            caption: current,
+            display_order: index
+        });
+    });
+    
+    fetch('/admin/photos/update-all', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ updates })
     })
     .then(response => response.json())
     .then(data => {
-        if (!data.success) {
-            alert('Erreur lors de la mise à jour : ' + data.message);
+        if (data.success) {
+            alert('Modifications enregistrées avec succès !');
+            location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Erreur lors de la mise à jour');
+        alert('Erreur lors de l\'enregistrement');
     });
 }
+
+// Initialiser les boutons au chargement
+document.addEventListener('DOMContentLoaded', function() {
+    updatePhotoNumbers();
+});
 </script>
 {% endblock %}
 
