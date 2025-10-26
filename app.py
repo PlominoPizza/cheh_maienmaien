@@ -598,6 +598,15 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'  # Debug activé par défaut en local
     host = os.environ.get('FLASK_HOST', '127.0.0.1')
     port = int(os.environ.get('FLASK_PORT', 5000))
-
+    
+    # En production, initialiser les données
+    if os.environ.get('FLASK_ENV') == 'production' or os.environ.get('DATABASE_URL', '').startswith('postgres'):
+        logger.info("Mode production détecté - Exécution de seed_data.py")
+        try:
+            import subprocess
+            subprocess.run(['python', 'seed_data.py'], check=True)
+        except Exception as e:
+            logger.warning(f"seed_data.py déjà exécuté ou erreur: {e}")
+    
     logger.info(f"Démarrage du serveur Flask - Debug: {debug_mode}")
     app.run(debug=debug_mode, host=host, port=port)
