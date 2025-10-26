@@ -55,13 +55,14 @@ def seed_admin():
     """Crée l'utilisateur admin si nécessaire"""
     print("\n[ADMIN] Synchronisation de l'admin...")
     
+    admin_password = os.environ.get('ADMIN_MDP')
+    if not admin_password:
+        print("[ERREUR] ADMIN_MDP non défini dans les variables d'environnement")
+        print("[INFO] Utilisez 'python update_admin_password.py' pour créer l'admin")
+        return
+    
     admin_user = User.query.filter_by(username='admin').first()
     if not admin_user:
-        admin_password = os.environ.get('ADMIN_MDP')
-        if not admin_password:
-            print("[ERREUR] ADMIN_MDP non défini dans les variables d'environnement")
-            print("[INFO] Utilisez 'python update_admin_password.py' pour créer l'admin")
-            return
         admin_user = User(
             username='admin',
             email='admin@chez-meme.com',
@@ -72,7 +73,10 @@ def seed_admin():
         db.session.commit()
         print("[OK] Utilisateur admin créé")
     else:
-        print("[EXISTE] Utilisateur admin existe déjà")
+        # Mettre à jour le mot de passe si l'admin existe déjà
+        admin_user.password_hash = generate_password_hash(admin_password)
+        db.session.commit()
+        print("[OK] Mot de passe admin mis à jour")
 
 def seed_activities():
     """Ajoute les activités par défaut si nécessaire"""
