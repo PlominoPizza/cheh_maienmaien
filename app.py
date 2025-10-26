@@ -3,9 +3,6 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from functools import wraps
 import secrets
 
@@ -50,48 +47,7 @@ class Activity(db.Model):
     image_url = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Configuration email
-EMAIL_SMTP_SERVER = os.environ.get('EMAIL_SMTP_SERVER', 'smtp.gmail.com')
-EMAIL_SMTP_PORT = int(os.environ.get('EMAIL_SMTP_PORT', '587'))
-EMAIL_USERNAME = os.environ.get('EMAIL_USERNAME', 'gabriel.plomion@gmail.com')
-EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD', 'eqom nwek tkuh pvay')
-EMAIL_RECIPIENTS = os.environ.get('EMAIL_RECIPIENTS', 'gabriel.plomion@gmail.com,miquel.antoine.pro@gmail.com').split(',')
-
-def send_reservation_email(reservation):
-    """Envoie un email de réservation aux administrateurs"""
-    try:
-        # Créer le message
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_USERNAME
-        msg['To'] = ", ".join(EMAIL_RECIPIENTS)
-        msg['Subject'] = f"Nouvelle réservation - {reservation.guest_name}"
-        
-        # Corps du message
-        base_url = os.environ.get('BASE_URL', 'http://localhost:5000')
-        approve_url = f"{base_url}/approve/{reservation.token}"
-        reject_url = f"{base_url}/reject/{reservation.token}"
-        
-        body = f"""
-{reservation.guest_name} veut réserver le canap' de chez mémé du {reservation.start_date} au {reservation.end_date}.
-
-<a href="{approve_url}">[Demande validée]</a>
-<a href="{reject_url}">[Demande non validée]</a>
-        """
-        
-        msg.attach(MIMEText(body, 'html'))
-        
-        # Connexion et envoi
-        server = smtplib.SMTP(EMAIL_SMTP_SERVER, EMAIL_SMTP_PORT)
-        server.starttls()
-        server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
-        text = msg.as_string()
-        server.sendmail(EMAIL_USERNAME, EMAIL_RECIPIENTS, text)
-        server.quit()
-        
-        return True
-    except Exception as e:
-        print(f"Erreur envoi email: {e}")
-        return False
+# Configuration email - DÉSACTIVÉE
 
 # Décorateur pour vérifier l'authentification admin
 def admin_required(f):
@@ -174,11 +130,8 @@ def reserver():
             db.session.add(reservation)
             db.session.commit()
             
-            # Envoyer l'email
-            if send_reservation_email(reservation):
-                return jsonify({'success': True, 'message': 'Demande envoyée ! Vous recevrez un email de confirmation.'})
-            else:
-                return jsonify({'success': False, 'message': 'Erreur lors de l\'envoi de l\'email. Veuillez réessayer.'})
+            # Réservation créée avec succès
+            return jsonify({'success': True, 'message': 'Demande de réservation envoyée avec succès !'})
                 
         except Exception as e:
             return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
