@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% block title %}Administration - Chez Mémé{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>🛠️ Administration des Réservations</h1>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_add_reservation') }}" class="btn btn-success">
+                <i class="fas fa-plus"></i> Ajouter une réservation
+            </a>
+            <a href="{{ url_for('admin_photos') }}" class="btn btn-info">
+                <i class="fas fa-images"></i> Gérer les photos
+            </a>
+            <a href="{{ url_for('logout') }}" class="btn btn-secondary">
+                <i class="fas fa-sign-out-alt"></i> Déconnexion
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="admin-stats">
+        <div class="stat-card">
+            <div class="stat-number">{{ reservations|length }}</div>
+            <div class="stat-label">Total réservations</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ reservations|selectattr('status', 'equalto', 'approved')|list|length }}</div>
+            <div class="stat-label">Réservations actives</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ reservations|selectattr('status', 'equalto', 'rejected')|list|length }}</div>
+            <div class="stat-label">Réservations annulées</div>
+        </div>
+    </div>
+
+    <!-- Filtres -->
+    <div class="admin-filters">
+        <div class="filter-group">
+            <label for="search">Rechercher :</label>
+            <input type="text" id="search" placeholder="Nom du réservataire...">
+        </div>
+        <div class="filter-group">
+            <label for="status-filter">Statut :</label>
+            <select id="status-filter">
+                <option value="">Tous</option>
+                <option value="approved">Actives</option>
+                <option value="rejected">Annulées</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Tableau des réservations -->
+    <div class="admin-table-container">
+        <table class="admin-table" id="reservations-table">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Arrivée</th>
+                    <th>Départ</th>
+                    <th>Durée</th>
+                    <th>Statut</th>
+                    <th>Créée le</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reservation in reservations %}
+                <tr data-status="{{ reservation.status }}">
+                    <td>{{ reservation.guest_name }}</td>
+                    <td>{{ reservation.start_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ reservation.end_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ (reservation.end_date - reservation.start_date).days }} nuit(s)</td>
+                    <td>
+                        <span class="status-badge status-{{ reservation.status }}">
+                            {% if reservation.status == 'approved' %}
+                                ✅ Active
+                            {% elif reservation.status == 'rejected' %}
+                                ❌ Annulée
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>{{ reservation.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td class="actions">
+                        <button onclick="editReservation({{ reservation.id }})" class="btn btn-sm btn-primary" title="Modifier">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteReservation({{ reservation.id }})" class="btn btn-sm btn-danger" title="Supprimer">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if reservations|length == 0 %}
+    <div class="no-reservations">
+        <i class="fas fa-calendar-times"></i>
+        <h3>Aucune réservation</h3>
+        <p>Il n'y a pas encore de réservations dans le système.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal de modification -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Modifier la réservation</h3>
+            <span class="close">&times;</span>
+        </div>
+        <form id="editForm">
+            <input type="hidden" id="edit-id" name="id">
+            <div class="form-group">
+                <label for="edit-name">Nom-Prénom ou Surnom</label>
+                <input type="text" id="edit-name" name="guest_name" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-start">Jour d'arrivée</label>
+                <input type="date" id="edit-start" name="start_date" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-end">Jour de départ</label>
+                <input type="date" id="edit-end" name="end_date" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-status">Statut</label>
+                <select id="edit-status" name="status">
+                    <option value="approved">✅ Active</option>
+                    <option value="rejected">❌ Annulée</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">Sauvegarder</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.admin-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.admin-header h1 {
+    color: #333;
+    margin: 0;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.admin-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #667eea;
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.admin-filters {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.filter-group label {
+    font-weight: 600;
+    color: #333;
+}
+
+.filter-group input,
+.filter-group select {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.admin-table-container {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-table th {
+    background: #667eea;
+    color: white;
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.admin-table td {
+    padding: 15px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.admin-table tr:hover {
+    background: #f8f9fa;
+}
+
+.status-badge {
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-approved {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-rejected {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.actions {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-sm {
+    padding: 5px 10px;
+    font-size: 0.8rem;
+}
+
+.no-reservations {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.no-reservations i {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    color: #ddd;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.close {
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+}
+
+.close:hover {
+    color: #333;
+}
+
+.modal form {
+    padding: 20px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+    .admin-header {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .admin-filters {
+        flex-direction: column;
+    }
+    
+    .admin-table-container {
+        overflow-x: auto;
+    }
+}
+</style>
+
+<script>
+// Filtrage des réservations
+document.getElementById('search').addEventListener('input', filterTable);
+document.getElementById('status-filter').addEventListener('change', filterTable);
+
+function filterTable() {
+    const searchTerm = document.getElementById('search').value.toLowerCase();
+    const statusFilter = document.getElementById('status-filter').value;
+    const rows = document.querySelectorAll('#reservations-table tbody tr');
+    
+    rows.forEach(row => {
+        const name = row.cells[0].textContent.toLowerCase();
+        const status = row.getAttribute('data-status');
+        
+        const matchesSearch = name.includes(searchTerm);
+        const matchesStatus = !statusFilter || status === statusFilter;
+        
+        row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+    });
+}
+
+// Gestion du modal
+function editReservation(id) {
+    // Récupérer les données de la réservation
+    const row = document.querySelector(`tr[data-id="${id}"]`);
+    if (!row) return;
+    
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-name').value = row.cells[0].textContent;
+    document.getElementById('edit-start').value = row.cells[1].textContent;
+    document.getElementById('edit-end').value = row.cells[2].textContent;
+    
+    const status = row.getAttribute('data-status');
+    document.getElementById('edit-status').value = status;
+    
+    document.getElementById('editModal').style.display = 'block';
+}
+
+function deleteReservation(id) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette réservation ?')) {
+        fetch(`/admin/delete/${id}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur lors de la suppression : ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erreur lors de la suppression');
+        });
+    }
+}
+
+function closeModal() {
+    document.getElementById('editModal').style.display = 'none';
+}
+
+// Fermer le modal en cliquant à l'extérieur
+window.onclick = function(event) {
+    const modal = document.getElementById('editModal');
+    if (event.target === modal) {
+        closeModal();
+    }
+}
+
+// Fermer avec la croix
+document.querySelector('.close').onclick = closeModal;
+
+// Soumission du formulaire de modification
+document.getElementById('editForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const id = formData.get('id');
+    
+    fetch(`/admin/edit/${id}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            closeModal();
+            location.reload();
+        } else {
+            alert('Erreur lors de la modification : ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erreur lors de la modification');
+    });
+});
+</script>
+{% endblock %}

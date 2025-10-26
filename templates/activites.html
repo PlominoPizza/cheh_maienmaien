@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Activités - Chez Mémé{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>🏃‍♂️ Activités à proximité</h1>
+        <p>Découvrez toutes les activités outdoor disponibles près de chez Mémé !</p>
+    </div>
+</section>
+
+<section class="activities-section">
+    <div class="container">
+        <div class="activities-filter">
+            <h3>Filtrer par activité :</h3>
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">Toutes</button>
+                <button class="filter-btn" data-filter="surf">🏄‍♂️ Surf</button>
+                <button class="filter-btn" data-filter="vtt">🚵‍♂️ VTT</button>
+                <button class="filter-btn" data-filter="randonnee">🥾 Randonnée</button>
+                <button class="filter-btn" data-filter="escalade">🧗‍♂️ Escalade</button>
+            </div>
+        </div>
+        
+        <div class="activities-grid">
+            {% for activity in activities %}
+            <div class="activity-card" data-type="{{ activity.activity_type }}">
+                <div class="activity-image">
+                    <img src="{{ activity.image_url or 'https://via.placeholder.com/400x250/6366f1/ffffff?text=' + activity.name }}" 
+                         alt="{{ activity.name }}" 
+                         onerror="this.src='https://via.placeholder.com/400x250/6366f1/ffffff?text={{ activity.name }}'">
+                    <div class="activity-type-badge">
+                        {% if activity.activity_type == 'surf' %}
+                            🏄‍♂️ Surf
+                        {% elif activity.activity_type == 'vtt' %}
+                            🚵‍♂️ VTT
+                        {% elif activity.activity_type == 'randonnee' %}
+                            🥾 Randonnée
+                        {% elif activity.activity_type == 'escalade' %}
+                            🧗‍♂️ Escalade
+                        {% else %}
+                            🎯 {{ activity.activity_type.title() }}
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="activity-content">
+                    <h3>{{ activity.name }}</h3>
+                    <p>{{ activity.description }}</p>
+                    
+                    <div class="activity-meta">
+                        <div class="meta-item">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>{{ activity.distance }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="fas fa-signal"></i>
+                            <span>{{ activity.difficulty }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="activity-actions">
+                        <button class="btn btn-secondary btn-small">
+                            <i class="fas fa-info-circle"></i>
+                            Plus d'infos
+                        </button>
+                        <button class="btn btn-primary btn-small">
+                            <i class="fas fa-route"></i>
+                            Itinéraire
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- Activités populaires -->
+<section class="popular-activities">
+    <div class="container">
+        <div class="section-header">
+            <h2>⭐ Activités populaires</h2>
+            <p>Les préférées de nos invités</p>
+        </div>
+        
+        <div class="popular-grid">
+            <div class="popular-item">
+                <div class="popular-icon">🏄‍♂️</div>
+                <h3>Surf à la Côte Sauvage</h3>
+                <p>Les meilleures vagues de la région, parfaites pour débuter ou se perfectionner.</p>
+                <div class="popular-stats">
+                    <span><i class="fas fa-star"></i> 4.8/5</span>
+                    <span><i class="fas fa-users"></i> 15 min</span>
+                </div>
+            </div>
+            
+            <div class="popular-item">
+                <div class="popular-icon">🚵‍♂️</div>
+                <h3>VTT en forêt</h3>
+                <p>Sentiers forestiers avec des dénivelés variés pour tous les niveaux.</p>
+                <div class="popular-stats">
+                    <span><i class="fas fa-star"></i> 4.6/5</span>
+                    <span><i class="fas fa-users"></i> 20 min</span>
+                </div>
+            </div>
+            
+            <div class="popular-item">
+                <div class="popular-icon">🥾</div>
+                <h3>Randonnée panoramique</h3>
+                <p>Vues magnifiques sur la vallée et les montagnes environnantes.</p>
+                <div class="popular-stats">
+                    <span><i class="fas fa-star"></i> 4.9/5</span>
+                    <span><i class="fas fa-users"></i> 25 min</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Équipements disponibles -->
+<section class="equipment-section">
+    <div class="container">
+        <div class="section-header">
+            <h2>🎒 Équipements disponibles</h2>
+            <p>Du matériel prêt à l'emploi pour vos aventures</p>
+        </div>
+        
+        <div class="equipment-grid">
+            <div class="equipment-category">
+                <h3>🏄‍♂️ Surf</h3>
+                <ul>
+                    <li>Planches de surf (débutant/intermédiaire)</li>
+                    <li>Combinaisons néoprène</li>
+                    <li>Leashes et wax</li>
+                    <li>Chaussures aquatiques</li>
+                </ul>
+            </div>
+            
+            <div class="equipment-category">
+                <h3>🚵‍♂️ VTT</h3>
+                <ul>
+                    <li>Vélos tout-terrain</li>
+                    <li>Casques de protection</li>
+                    <li>Outils de réparation</li>
+                    <li>Gourdes et sacs à dos</li>
+                </ul>
+            </div>
+            
+            <div class="equipment-category">
+                <h3>🥾 Randonnée</h3>
+                <ul>
+                    <li>Chaussures de randonnée</li>
+                    <li>Bâtons de marche</li>
+                    <li>Sacs à dos</li>
+                    <li>Cartes et boussoles</li>
+                </ul>
+            </div>
+            
+            <div class="equipment-category">
+                <h3>🧗‍♂️ Escalade</h3>
+                <ul>
+                    <li>Chaussons d'escalade</li>
+                    <li>Harnais et casques</li>
+                    <li>Corde et mousquetons</li>
+                    <li>Magnésie</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="equipment-note">
+            <div class="note-card">
+                <i class="fas fa-info-circle"></i>
+                <div>
+                    <h4>Information importante</h4>
+                    <p>L'utilisation de l'équipement est gratuite pour nos invités. Pensez à réserver à l'avance car le matériel est en quantité limitée !</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Météo locale -->
+<section class="weather-section">
+    <div class="container">
+        <div class="section-header">
+            <h2>🌤️ Météo locale</h2>
+            <p>Conditions météo pour vos activités outdoor</p>
+        </div>
+        
+        <div class="weather-widget">
+            <div class="weather-card">
+                <div class="weather-icon">☀️</div>
+                <div class="weather-info">
+                    <h3>Aujourd'hui</h3>
+                    <p>Ensoleillé, 22°C</p>
+                    <span>Parfait pour le surf et la randonnée</span>
+                </div>
+            </div>
+            
+            <div class="weather-card">
+                <div class="weather-icon">⛅</div>
+                <div class="weather-info">
+                    <h3>Demain</h3>
+                    <p>Partiellement nuageux, 20°C</p>
+                    <span>Idéal pour le VTT</span>
+                </div>
+            </div>
+            
+            <div class="weather-card">
+                <div class="weather-icon">🌧️</div>
+                <div class="weather-info">
+                    <h3>Après-demain</h3>
+                    <p>Pluie légère, 18°C</p>
+                    <span>Journée repos ou activités indoor</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/activities.js') }}"></script>
+{% endblock %}

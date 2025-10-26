@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Chez Mémé{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>👑 Administration</h1>
+        <p>Gérez les réservations et administrez Chez Mémé</p>
+    </div>
+</section>
+
+<section class="admin-dashboard">
+    <div class="container">
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>{{ pending_reservations|length }}</h3>
+                    <p>En attente</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>{{ all_reservations|selectattr('status', 'equalto', 'approved')|list|length }}</h3>
+                    <p>Approuvées</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div class="stat-info">
+                    <h3>{{ all_reservations|length }}</h3>
+                    <p>Total réservations</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-content">
+            <div class="pending-reservations">
+                <h2>⏳ Réservations en attente</h2>
+                {% if pending_reservations %}
+                    <div class="reservations-list">
+                        {% for reservation in pending_reservations %}
+                        <div class="reservation-card pending">
+                            <div class="reservation-header">
+                                <h3>{{ reservation.guest_name }}</h3>
+                                <span class="reservation-date">
+                                    {{ reservation.start_date.strftime('%d/%m/%Y') }} - {{ reservation.end_date.strftime('%d/%m/%Y') }}
+                                </span>
+                            </div>
+                            
+                            <div class="reservation-details">
+                                <div class="detail-item">
+                                    <i class="fas fa-envelope"></i>
+                                    <span>{{ reservation.guest_email }}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <i class="fas fa-user"></i>
+                                    <span>Demandé par {{ reservation.user.username }}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <i class="fas fa-calendar"></i>
+                                    <span>{{ reservation.created_at.strftime('%d/%m/%Y à %H:%M') }}</span>
+                                </div>
+                                {% if reservation.message %}
+                                <div class="detail-item">
+                                    <i class="fas fa-comment"></i>
+                                    <span>{{ reservation.message }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="reservation-actions">
+                                <a href="{{ url_for('approve_reservation', reservation_id=reservation.id) }}" 
+                                   class="btn btn-success">
+                                    <i class="fas fa-check"></i>
+                                    Approuver
+                                </a>
+                                <a href="{{ url_for('reject_reservation', reservation_id=reservation.id) }}" 
+                                   class="btn btn-danger">
+                                    <i class="fas fa-times"></i>
+                                    Rejeter
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle"></i>
+                        <h3>Aucune réservation en attente</h3>
+                        <p>Toutes les demandes ont été traitées !</p>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="all-reservations">
+                <h2>📋 Toutes les réservations</h2>
+                <div class="reservations-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Invité</th>
+                                <th>Email</th>
+                                <th>Dates</th>
+                                <th>Statut</th>
+                                <th>Demandé par</th>
+                                <th>Date demande</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for reservation in all_reservations %}
+                            <tr class="reservation-row {{ reservation.status }}">
+                                <td>{{ reservation.guest_name }}</td>
+                                <td>{{ reservation.guest_email }}</td>
+                                <td>
+                                    {{ reservation.start_date.strftime('%d/%m/%Y') }} - 
+                                    {{ reservation.end_date.strftime('%d/%m/%Y') }}
+                                </td>
+                                <td>
+                                    <span class="status-badge {{ reservation.status }}">
+                                        {% if reservation.status == 'pending' %}
+                                            ⏳ En attente
+                                        {% elif reservation.status == 'approved' %}
+                                            ✅ Approuvée
+                                        {% else %}
+                                            ❌ Rejetée
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td>{{ reservation.user.username }}</td>
+                                <td>{{ reservation.created_at.strftime('%d/%m/%Y') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Actions rapides -->
+<section class="admin-actions">
+    <div class="container">
+        <h2>⚡ Actions rapides</h2>
+        <div class="actions-grid">
+            <a href="{{ url_for('calendrier') }}" class="action-card">
+                <i class="fas fa-calendar-alt"></i>
+                <h3>Voir le calendrier</h3>
+                <p>Consulter les disponibilités</p>
+            </a>
+            
+            <a href="{{ url_for('activites') }}" class="action-card">
+                <i class="fas fa-hiking"></i>
+                <h3>Gérer les activités</h3>
+                <p>Modifier les activités disponibles</p>
+            </a>
+            
+            <div class="action-card">
+                <i class="fas fa-download"></i>
+                <h3>Exporter les données</h3>
+                <p>Télécharger un rapport Excel</p>
+            </div>
+            
+            <div class="action-card">
+                <i class="fas fa-cog"></i>
+                <h3>Paramètres</h3>
+                <p>Configurer le système</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}

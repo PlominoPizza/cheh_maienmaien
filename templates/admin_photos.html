@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des Photos - Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>📸 Gestion des Photos</h1>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Retour à l'administration
+            </a>
+        </div>
+    </div>
+
+    <!-- Section téléversement -->
+    <div class="upload-section">
+        <h2>Ajouter de nouvelles photos</h2>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="upload-area" id="uploadArea">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>Glissez-déposez vos photos ici ou cliquez pour sélectionner</p>
+                <p class="upload-info">Formats acceptés : JPG, PNG, GIF, WebP (max 5MB par photo)</p>
+                <input type="file" id="photoInput" name="photos" multiple accept="image/*" style="display: none;">
+            </div>
+            
+            <div id="previewContainer" class="preview-container" style="display: none;">
+                <h3>Aperçu des photos</h3>
+                <div id="previewGrid" class="preview-grid"></div>
+            </div>
+            
+            <div class="upload-actions" style="display: none;" id="uploadActions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> Téléverser les photos
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="clearUpload()">
+                    <i class="fas fa-times"></i> Annuler
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Section photos existantes -->
+    <div class="photos-section">
+        <h2>Photos actuelles ({{ photos|length }}/10)</h2>
+        
+        {% if photos %}
+        <div class="photos-grid">
+            {% for photo in photos %}
+            <div class="photo-card" data-photo-id="{{ photo.id }}">
+                <div class="photo-image">
+                    <img src="{{ url_for('static', filename='uploads/images/' + photo.filename) }}" 
+                         alt="{{ photo.caption or 'Photo' }}">
+                    <div class="photo-overlay">
+                        <button onclick="deletePhoto({{ photo.id }})" class="btn btn-sm btn-danger" title="Supprimer">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="photo-caption">
+                    <input type="text" 
+                           value="{{ photo.caption or '' }}" 
+                           placeholder="Ajouter une légende..."
+                           onchange="updateCaption({{ photo.id }}, this.value)"
+                           class="caption-input">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-photos">
+            <i class="fas fa-images"></i>
+            <h3>Aucune photo</h3>
+            <p>Téléversez vos premières photos pour les afficher sur le site.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.upload-section {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.upload-area {
+    border: 2px dashed #667eea;
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f8f9fa;
+}
+
+.upload-area:hover {
+    border-color: #5a6fd8;
+    background: #e9ecef;
+}
+
+.upload-area i {
+    font-size: 3rem;
+    color: #667eea;
+    margin-bottom: 15px;
+}
+
+.upload-area p {
+    margin: 10px 0;
+    color: #666;
+}
+
+.upload-info {
+    font-size: 0.9rem;
+    color: #999;
+}
+
+.preview-container {
+    margin-top: 30px;
+}
+
+.preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.preview-item {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.preview-item img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+}
+
+.preview-caption {
+    padding: 10px;
+    background: white;
+}
+
+.preview-caption input {
+    width: 100%;
+    border: none;
+    padding: 5px;
+    font-size: 0.9rem;
+    background: transparent;
+}
+
+.upload-actions {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.photos-section {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.photos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.photo-card {
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.photo-card:hover {
+    transform: translateY(-5px);
+}
+
+.photo-image {
+    position: relative;
+    height: 200px;
+    overflow: hidden;
+}
+
+.photo-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.photo-overlay {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.photo-card:hover .photo-overlay {
+    opacity: 1;
+}
+
+.photo-caption {
+    padding: 15px;
+    background: white;
+}
+
+.caption-input {
+    width: 100%;
+    border: 1px solid #ddd;
+    padding: 8px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+.caption-input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.no-photos {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.no-photos i {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    color: #ddd;
+}
+
+.btn-sm {
+    padding: 5px 10px;
+    font-size: 0.8rem;
+}
+</style>
+
+<script>
+let selectedFiles = [];
+
+document.getElementById('uploadArea').addEventListener('click', () => {
+    document.getElementById('photoInput').click();
+});
+
+document.getElementById('photoInput').addEventListener('change', function(e) {
+    selectedFiles = Array.from(e.target.files);
+    showPreview();
+});
+
+document.getElementById('uploadArea').addEventListener('dragover', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#5a6fd8';
+});
+
+document.getElementById('uploadArea').addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#667eea';
+});
+
+document.getElementById('uploadArea').addEventListener('drop', function(e) {
+    e.preventDefault();
+    this.style.borderColor = '#667eea';
+    selectedFiles = Array.from(e.dataTransfer.files);
+    showPreview();
+});
+
+function showPreview() {
+    if (selectedFiles.length === 0) return;
+    
+    const previewContainer = document.getElementById('previewContainer');
+    const previewGrid = document.getElementById('previewGrid');
+    const uploadActions = document.getElementById('uploadActions');
+    
+    previewContainer.style.display = 'block';
+    uploadActions.style.display = 'block';
+    
+    previewGrid.innerHTML = '';
+    
+    selectedFiles.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const previewItem = document.createElement('div');
+            previewItem.className = 'preview-item';
+            previewItem.innerHTML = `
+                <img src="${e.target.result}" alt="Preview">
+                <div class="preview-caption">
+                    <input type="text" name="captions" placeholder="Légende pour cette photo..." value="">
+                </div>
+            `;
+            previewGrid.appendChild(previewItem);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function clearUpload() {
+    selectedFiles = [];
+    document.getElementById('photoInput').value = '';
+    document.getElementById('previewContainer').style.display = 'none';
+    document.getElementById('uploadActions').style.display = 'none';
+}
+
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (selectedFiles.length === 0) {
+        alert('Veuillez sélectionner au moins une photo');
+        return;
+    }
+    
+    const formData = new FormData();
+    
+    // Ajouter les fichiers
+    selectedFiles.forEach(file => {
+        formData.append('photos', file);
+    });
+    
+    // Ajouter les légendes
+    const captionInputs = document.querySelectorAll('input[name="captions"]');
+    captionInputs.forEach(input => {
+        formData.append('captions', input.value);
+    });
+    
+    // Téléverser
+    fetch('/admin/photos/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erreur : ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erreur lors du téléversement');
+    });
+});
+
+function deletePhoto(photoId) {
+    if (confirm('Êtes-vous sûr de vouloir supprimer cette photo ?')) {
+        fetch(`/admin/photos/delete/${photoId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur : ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erreur lors de la suppression');
+        });
+    }
+}
+
+function updateCaption(photoId, caption) {
+    const formData = new FormData();
+    formData.append('caption', caption);
+    
+    fetch(`/admin/photos/update-caption/${photoId}`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            alert('Erreur lors de la mise à jour : ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Erreur lors de la mise à jour');
+    });
+}
+</script>
+{% endblock %}
+

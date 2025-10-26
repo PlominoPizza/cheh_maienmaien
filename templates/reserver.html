@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Réserver - Chez Mémé{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>🛏️ Réserver la chambre d'amis</h1>
+        <p>Faites votre demande de réservation pour passer un séjour chez Mémé !</p>
+    </div>
+</section>
+
+<section class="reservation-form-section">
+    <div class="container">
+        <div class="form-container">
+            <form method="POST" class="reservation-form">
+                <div class="form-header">
+                    <h3>📝 Formulaire de réservation</h3>
+                    <p>Tous les champs sont obligatoires</p>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="start_date">Date d'arrivée</label>
+                        <input type="date" id="start_date" name="start_date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end_date">Date de départ</label>
+                        <input type="date" id="end_date" name="end_date" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="guest_name">Nom complet</label>
+                        <input type="text" id="guest_name" name="guest_name" placeholder="Votre nom complet" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="guest_email">Email</label>
+                        <input type="email" id="guest_email" name="guest_email" placeholder="votre@email.com" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="message">Message (optionnel)</label>
+                    <textarea id="message" name="message" rows="4" placeholder="Dites-nous pourquoi vous voulez venir chez Mémé, si vous avez des besoins particuliers, etc."></textarea>
+                </div>
+                
+                <div class="form-info">
+                    <h4>ℹ️ Informations importantes</h4>
+                    <ul>
+                        <li>Votre demande sera examinée par l'admin</li>
+                        <li>Vous recevrez une réponse dans les 24h</li>
+                        <li>La réservation n'est confirmée qu'après validation</li>
+                        <li>En cas de conflit de dates, nous vous contacterons</li>
+                    </ul>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-large">
+                    <i class="fas fa-paper-plane"></i>
+                    Envoyer la demande
+                </button>
+            </form>
+            
+            <div class="form-sidebar">
+                <div class="sidebar-card">
+                    <h4>🏠 À propos de la chambre</h4>
+                    <ul>
+                        <li>Lit double confortable</li>
+                        <li>Armoire et commode</li>
+                        <li>Bureau pour travailler</li>
+                        <li>Fenêtre avec vue sur le jardin</li>
+                        <li>Accès WiFi gratuit</li>
+                    </ul>
+                </div>
+                
+                <div class="sidebar-card">
+                    <h4>🚿 Partagé avec les colocataires</h4>
+                    <ul>
+                        <li>Cuisine équipée</li>
+                        <li>Salle de bain</li>
+                        <li>Salon avec TV</li>
+                        <li>Terrasse</li>
+                        <li>Lave-linge</li>
+                    </ul>
+                </div>
+                
+                <div class="sidebar-card">
+                    <h4>📍 Localisation</h4>
+                    <p>L'appartement est situé dans un quartier calme, à proximité des transports en commun et des commerces.</p>
+                    <ul>
+                        <li>5 min à pied du centre-ville</li>
+                        <li>10 min en bus de la gare</li>
+                        <li>15 min en voiture de la plage</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Disponibilités rapides -->
+<section class="quick-availability">
+    <div class="container">
+        <h3>📅 Prochaines disponibilités</h3>
+        <div class="availability-grid" id="availabilityGrid">
+            <!-- Généré par JavaScript -->
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/reservation.js') }}"></script>
+{% endblock %}

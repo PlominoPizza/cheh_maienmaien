@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Chez Mémé - Réservation{% endblock %}
+
+{% block content %}
+<!-- Section Bienvenue -->
+<section class="welcome-section">
+    <div class="container">
+        <div class="welcome-content">
+            <h1 class="welcome-title">🍵 Bienvenue chez Mémé</h1>
+            <p class="welcome-text">
+                Mon petit, tu es le bienvenu dans ma maison ! Depuis que j'ai appris à faire ce site internet, 
+                je peux enfin recevoir mes petits-enfants et leurs amis comme il faut. 
+                Viens donc passer quelques jours chez ta Mémé à Biarritz !
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- Section Calendrier -->
+<section class="calendar-section">
+    <div class="container">
+        <h2 class="section-title">📅 Calendrier des réservations</h2>
+        <div class="calendar-container">
+            <div id="calendar"></div>
+        </div>
+    </div>
+</section>
+
+<!-- Section Informations utiles -->
+<section class="info-section">
+    <div class="container">
+        <h2 class="section-title">📍 Informations utiles</h2>
+        
+        <!-- Photos -->
+        <div class="photos-container">
+            <h3>📸 Photos de la maison</h3>
+            <div class="photos-grid">
+                {% for photo in photos %}
+                <div class="photo-item">
+                    <img src="{{ url_for('static', filename='uploads/images/' + photo.filename) }}" 
+                         alt="{{ photo.caption or 'Photo de la maison' }}">
+                    {% if photo.caption %}
+                    <div class="photo-caption">
+                        <p>{{ photo.caption }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                
+                {% if photos|length == 0 %}
+                <div class="no-photos-message">
+                    <i class="fas fa-camera"></i>
+                    <p>Photos à venir...</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Adresse et accès -->
+        <div class="address-info">
+            <h3>🏠 Adresse</h3>
+            <div class="address-card">
+                <i class="fas fa-map-marker-alt"></i>
+                <p><strong>7 avenue du Lac Marion</strong><br>64200 Biarritz</p>
+            </div>
+            
+            <h3>🚂 Comment venir</h3>
+            <div class="transport-info">
+                <div class="transport-item">
+                    <i class="fas fa-train"></i>
+                    <div>
+                        <strong>En train</strong>
+                        <p>Gare de Biarritz + 20 minutes de marche</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Section Réservation -->
+<section class="reservation-section">
+    <div class="container">
+        <h2 class="section-title">🛏️ Réserver le canap' de chez Mémé</h2>
+        <p style="text-align: center; margin-bottom: 30px; color: #666;">
+            Remplissez le formulaire ci-dessous pour réserver directement votre séjour !
+        </p>
+        
+        <div class="reservation-form-container">
+            <form id="reservationForm" class="reservation-form">
+                <div class="form-group">
+                    <label for="guest_name">Nom-Prénom ou Surnom</label>
+                    <input type="text" id="guest_name" name="guest_name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="start_date">Jour d'arrivée</label>
+                    <input type="date" id="start_date" name="start_date" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="end_date">Jour de départ</label>
+                    <input type="date" id="end_date" name="end_date" required>
+                </div>
+                
+                <div class="form-note">
+                    <small style="color: #666; font-size: 0.9rem;">
+                        <strong>Note :</strong> Le jour de départ n'est pas inclus dans la réservation. 
+                        Si vous réservez du 15 au 17, vous occupez les nuits du 15 et du 16 (2 nuits). 
+                        <em>Exemple : arrivée le 15/11, départ le 17/11 = nuits du 15 et 16 réservées (2 nuits).</em>
+                    </small>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Confirmer la réservation</button>
+            </form>
+        </div>
+    </div>
+</section>
+
+<!-- Messages Flash -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        <div class="flash-messages">
+            {% for category, message in messages %}
+                <div class="flash-message flash-{{ category }}">
+                    <span>{{ message }}</span>
+                    <button class="close-flash">&times;</button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/simple-calendar.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Formulaire de réservation
+    const form = document.getElementById('reservationForm');
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        
+        fetch('/reserver', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Réservation confirmée ! Elle apparaît maintenant dans le calendrier.');
+                form.reset();
+                // Recharger le calendrier pour afficher la nouvelle réservation
+                location.reload();
+            } else {
+                alert('Erreur: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erreur lors de l\'envoi de la demande');
+        });
+    });
+    
+    // Validation des dates
+    const startDate = document.getElementById('start_date');
+    const endDate = document.getElementById('end_date');
+    
+    startDate.addEventListener('change', function() {
+        endDate.min = this.value;
+    });
+    
+    endDate.addEventListener('change', function() {
+        if (this.value <= startDate.value) {
+            this.value = '';
+            alert('Le jour de départ doit être après le jour d\'arrivée');
+        }
+    });
+    
+    // Date minimum = aujourd'hui
+    const today = new Date().toISOString().split('T')[0];
+    startDate.min = today;
+});
+</script>
+{% endblock %}

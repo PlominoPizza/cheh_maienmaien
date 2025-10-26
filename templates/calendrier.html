@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Calendrier - Chez Mémé{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>📅 Calendrier des réservations</h1>
+        <p>Consultez les disponibilités et réservez votre séjour chez Mémé !</p>
+    </div>
+</section>
+
+<section class="calendar-section">
+    <div class="container">
+        <div class="calendar-container">
+            <div class="calendar-header">
+                <button id="prevMonth" class="btn btn-secondary">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <h2 id="currentMonth"></h2>
+                <button id="nextMonth" class="btn btn-secondary">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            
+            <div class="calendar-grid" id="calendarGrid">
+                <!-- Le calendrier sera généré par JavaScript -->
+            </div>
+            
+            <div class="calendar-legend">
+                <div class="legend-item">
+                    <div class="legend-color available"></div>
+                    <span>Disponible</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color reserved"></div>
+                    <span>Réservé</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color today"></div>
+                    <span>Aujourd'hui</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="reservation-info">
+            <div class="info-card">
+                <h3>💡 Comment ça marche ?</h3>
+                <ol>
+                    <li>Consultez le calendrier pour voir les disponibilités</li>
+                    <li>Cliquez sur "Réserver" pour faire votre demande</li>
+                    <li>Remplissez le formulaire avec vos informations</li>
+                    <li>Attendez la validation de l'admin</li>
+                    <li>Recevez une confirmation par email</li>
+                </ol>
+            </div>
+            
+            <div class="info-card">
+                <h3>📋 Règles de réservation</h3>
+                <ul>
+                    <li>Réservation minimum : 1 nuit</li>
+                    <li>Réservation maximum : 7 nuits</li>
+                    <li>Annulation possible jusqu'à 24h avant</li>
+                    <li>Arrivée après 15h, départ avant 11h</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="quick-reserve">
+            <h3>Prêt à réserver ?</h3>
+            <p>Cliquez sur le bouton ci-dessous pour faire votre demande de réservation.</p>
+            <a href="{{ url_for('reserver') }}" class="btn btn-primary btn-large">
+                <i class="fas fa-bed"></i>
+                Réserver maintenant
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Modal pour les détails de réservation -->
+<div id="reservationModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3>Détails de la réservation</h3>
+        <div id="reservationDetails"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
+{% endblock %}

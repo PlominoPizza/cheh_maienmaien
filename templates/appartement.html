@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}L'Appartement - Chez Mémé{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>🏠 Découvrez notre appartement</h1>
+        <p>Visite virtuelle de la collocation la plus fun de la région !</p>
+    </div>
+</section>
+
+<section class="apartment-gallery">
+    <div class="container">
+        <div class="gallery-header">
+            <h2>📸 Galerie photos</h2>
+            <p>Un aperçu de notre chez-nous</p>
+        </div>
+        
+        <div class="photo-grid">
+            <div class="photo-item main-photo">
+                <img src="{{ url_for('static', filename='images/salon.jpg') }}" alt="Salon" onerror="this.src='https://via.placeholder.com/600x400/6366f1/ffffff?text=Salon'">
+                <div class="photo-caption">
+                    <h3>Salon cosy</h3>
+                    <p>L'endroit parfait pour se détendre et regarder Netflix</p>
+                </div>
+            </div>
+            
+            <div class="photo-item">
+                <img src="{{ url_for('static', filename='images/cuisine.jpg') }}" alt="Cuisine" onerror="this.src='https://via.placeholder.com/300x200/8b5cf6/ffffff?text=Cuisine'">
+                <div class="photo-caption">
+                    <h4>Cuisine équipée</h4>
+                </div>
+            </div>
+            
+            <div class="photo-item">
+                <img src="{{ url_for('static', filename='images/chambre-amis.jpg') }}" alt="Chambre d'amis" onerror="this.src='https://via.placeholder.com/300x200/06b6d4/ffffff?text=Chambre+Amis'">
+                <div class="photo-caption">
+                    <h4>Chambre d'amis</h4>
+                </div>
+            </div>
+            
+            <div class="photo-item">
+                <img src="{{ url_for('static', filename='images/salle-bain.jpg') }}" alt="Salle de bain" onerror="this.src='https://via.placeholder.com/300x200/10b981/ffffff?text=Salle+de+Bain'">
+                <div class="photo-caption">
+                    <h4>Salle de bain</h4>
+                </div>
+            </div>
+            
+            <div class="photo-item">
+                <img src="{{ url_for('static', filename='images/terrasse.jpg') }}" alt="Terrasse" onerror="this.src='https://via.placeholder.com/300x200/f59e0b/ffffff?text=Terrasse'">
+                <div class="photo-caption">
+                    <h4>Terrasse</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="apartment-details">
+    <div class="container">
+        <div class="details-grid">
+            <div class="details-content">
+                <h2>🏡 Plan de l'appartement</h2>
+                <div class="apartment-plan">
+                    <div class="plan-room salon">
+                        <span>Salon</span>
+                    </div>
+                    <div class="plan-room cuisine">
+                        <span>Cuisine</span>
+                    </div>
+                    <div class="plan-room chambre-principale">
+                        <span>Chambre<br>Principale</span>
+                    </div>
+                    <div class="plan-room chambre-amis">
+                        <span>Chambre<br>d'Amis</span>
+                    </div>
+                    <div class="plan-room salle-bain">
+                        <span>Salle<br>de Bain</span>
+                    </div>
+                    <div class="plan-room terrasse">
+                        <span>Terrasse</span>
+                    </div>
+                </div>
+                
+                <div class="apartment-specs">
+                    <h3>📋 Caractéristiques</h3>
+                    <div class="specs-grid">
+                        <div class="spec-item">
+                            <i class="fas fa-home"></i>
+                            <div>
+                                <strong>Type</strong>
+                                <span>Appartement T3</span>
+                            </div>
+                        </div>
+                        <div class="spec-item">
+                            <i class="fas fa-bed"></i>
+                            <div>
+                                <strong>Chambres</strong>
+                                <span>2 chambres</span>
+                            </div>
+                        </div>
+                        <div class="spec-item">
+                            <i class="fas fa-users"></i>
+                            <div>
+                                <strong>Capacité</strong>
+                                <span>4 personnes</span>
+                            </div>
+                        </div>
+                        <div class="spec-item">
+                            <i class="fas fa-wifi"></i>
+                            <div>
+                                <strong>WiFi</strong>
+                                <span>Fibre optique</span>
+                            </div>
+                        </div>
+                        <div class="spec-item">
+                            <i class="fas fa-car"></i>
+                            <div>
+                                <strong>Parking</strong>
+                                <span>Place disponible</span>
+                            </div>
+                        </div>
+                        <div class="spec-item">
+                            <i class="fas fa-smoking-ban"></i>
+                            <div>
+                                <strong>Non-fumeur</strong>
+                                <span>Intérieur uniquement</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="details-sidebar">
+                <div class="sidebar-card">
+                    <h3>🎯 Points forts</h3>
+                    <ul>
+                        <li>Emplacement central à Biarritz</li>
+                        <li>Transport en commun à proximité</li>
+                        <li>Commerces à pied</li>
+                        <li>Quartier calme et familial</li>
+                        <li>Proche du lac Marion</li>
+                        <li>Accès facile aux plages</li>
+                    </ul>
+                </div>
+                
+                <div class="sidebar-card">
+                    <h3>🛠️ Équipements</h3>
+                    <ul>
+                        <li>Lave-linge</li>
+                        <li>Lave-vaisselle</li>
+                        <li>Four micro-ondes</li>
+                        <li>Réfrigérateur</li>
+                        <li>TV + Netflix</li>
+                        <li>Chauffage central</li>
+                    </ul>
+                </div>
+                
+                <div class="sidebar-card">
+                    <h3>🚪 Accès</h3>
+                    <ul>
+                        <li>Code d'entrée fourni</li>
+                        <li>Clés remises à l'arrivée</li>
+                        <li>Arrivée flexible</li>
+                        <li>Support 24h/7j</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Visite virtuelle -->
+<section class="virtual-tour">
+    <div class="container">
+        <div class="tour-header">
+            <h2>🕹️ Visite virtuelle 360°</h2>
+            <p>Explorez l'appartement comme si vous y étiez !</p>
+        </div>
+        
+        <div class="tour-container">
+            <div class="tour-placeholder">
+                <i class="fas fa-vr-cardboard"></i>
+                <h3>Visite virtuelle bientôt disponible</h3>
+                <p>Nous travaillons sur une visite 360° interactive. En attendant, profitez des photos !</p>
+                <button class="btn btn-secondary" disabled>
+                    <i class="fas fa-play"></i>
+                    Démarrer la visite
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Modal pour les photos -->
+<div id="photoModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <img id="modalImage" src="" alt="">
+        <div id="modalCaption"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/apartment.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Chez Mémé - Collocation{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/simple.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <img src="{{ url_for('static', filename='images/meme-logo.svg') }}" alt="Mémé" class="logo-img">
+                <h2>🍵 Chez Mémé</h2>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="{{ url_for('index') }}" class="nav-link">Accueil</a>
+                </li>
+                {% if session.is_admin %}
+                <li class="nav-item">
+                    <a href="{{ url_for('admin') }}" class="nav-link admin-link">🛠️ Admin (c'est open bar)</a>
+                </li>
+                {% else %}
+                <li class="nav-item">
+                    <a href="{{ url_for('admin_login') }}" class="nav-link admin-link">🔐 Admin (c'est open bar)</a>
+                </li>
+                {% endif %}
+            </ul>
+            <div class="hamburger">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages Flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">
+                        <span>{{ message }}</span>
+                        <button class="close-flash">&times;</button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Contenu principal -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>
+                        <img src="{{ url_for('static', filename='images/meme-logo.svg') }}" alt="Mémé" class="footer-logo">
+                        🍵 Chez Mémé
+                    </h3>
+                    <p>Ta grand-mère qui sait recevoir ! Depuis que j'ai appris l'internet, je peux enfin inviter tout le monde.</p>
+                    <div class="social-links">
+                        <a href="#" title="Instagram"><i class="fab fa-instagram"></i></a>
+                        <a href="#" title="Facebook"><i class="fab fa-facebook"></i></a>
+                        <a href="#" title="TikTok"><i class="fab fa-tiktok"></i></a>
+                    </div>
+                </div>
+                <div class="footer-section">
+                    <h4>Mes liens</h4>
+                    <ul>
+                        <li><a href="{{ url_for('calendrier') }}">Mes disponibilités</a></li>
+                        <li><a href="{{ url_for('reserver') }}">Réserver</a></li>
+                        <li><a href="{{ url_for('appartement') }}">Ma maison</a></li>
+                        <li><a href="{{ url_for('activites') }}">Biarritz</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Comment me joindre</h4>
+                    <p>📧 mémé@chez-meme.com</p>
+                    <p>📱 06 12 34 56 78</p>
+                    <p>📍 7 avenue du Lac Marion, 64200 Biarritz</p>
+                    <p><small>Tu peux aussi sonner à la porte !</small></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Chez Mémé. | Fait avec ❤️ par ta grand-mère qui apprend l'internet</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
