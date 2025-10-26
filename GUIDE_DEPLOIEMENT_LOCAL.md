@@ -176,3 +176,4 @@ Puis ouvrez : http://localhost:5000
 **Admin** : http://localhost:5000/admin
 - Username : `admin`
 - Password : `admin123`
+

@@ -10,8 +10,14 @@ from PIL import Image
 import uuid
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chez-meme-super-secret-key-2024'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chez_meme.db'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chez-meme-super-secret-key-2024-development-only')
+
+# Configuration de la base de données
+# Supporte SQLite en local et PostgreSQL en production
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///chez_meme.db')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Configuration pour le téléversement d'images
@@ -97,6 +103,73 @@ def admin_required(f):
     return decorated_function
 
 # Routes principales
+# Initialisation automatique de la base de données au démarrage
+_first_request_done = False
+
+@app.before_request
+def initialize_db():
+    """Crée les tables et initialise les données par défaut au premier démarrage"""
+    global _first_request_done
+    if not _first_request_done:
+        _first_request_done = True
+        db.create_all()
+        print("Tables de base de données créées/vérifiées.")
+        
+        # Créer un admin par défaut
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            admin_user = User(
+                username='admin',
+                email='admin@chez-meme.com',
+                password_hash=generate_password_hash('On est tous dans la m3rde !'),
+                is_admin=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            print("Admin par défaut créé: username='admin', password='On est tous dans la m3rde !'")
+        
+        # Ajouter des activités par défaut
+        if Activity.query.count() == 0:
+            activities = [
+                Activity(
+                    name='Plage de la Côte Sauvage',
+                    description='Magnifique plage pour le surf avec des vagues parfaites pour débuter',
+                    distance='5 km',
+                    difficulty='Facile',
+                    activity_type='surf',
+                    image_url='/static/images/surf.jpg'
+                ),
+                Activity(
+                    name='Forêt de Fontainebleau',
+                    description='Parcours VTT dans les sentiers forestiers avec des dénivelés variés',
+                    distance='15 km',
+                    difficulty='Intermédiaire',
+                    activity_type='vtt',
+                    image_url='/static/images/vtt.jpg'
+                ),
+                Activity(
+                    name='Sentier des Crêtes',
+                    description='Randonnée panoramique avec vue sur la vallée et les montagnes',
+                    distance='8 km',
+                    difficulty='Facile',
+                    activity_type='randonnee',
+                    image_url='/static/images/randonnee.jpg'
+                ),
+                Activity(
+                    name='Rocher de l\'Aigle',
+                    description='Site d\'escalade réputé avec des voies de tous niveaux',
+                    distance='12 km',
+                    difficulty='Difficile',
+                    activity_type='escalade',
+                    image_url='/static/images/escalade.jpg'
+                )
+            ]
+            
+            for activity in activities:
+                db.session.add(activity)
+            db.session.commit()
+            print("Activités par défaut ajoutées.")
+
 @app.route('/')
 def index():
     photos = Photo.query.order_by(Photo.display_order, Photo.created_at).all()
@@ -445,67 +518,6 @@ def api_reservations():
         'guest_name': r.guest_name
     } for r in reservations])
 
-# Initialisation de la base de données
-def init_db():
-    with app.app_context():
-        db.create_all()
-        
-        # Créer un admin par défaut
-        admin_user = User.query.filter_by(username='admin').first()
-        if not admin_user:
-            admin_user = User(
-                username='admin',
-                email='admin@chez-meme.com',
-                password_hash=generate_password_hash('On est tous dans la m3rde !'),
-                is_admin=True
-            )
-            db.session.add(admin_user)
-        
-        # Ajouter des activités par défaut
-        if Activity.query.count() == 0:
-            activities = [
-                Activity(
-                    name='Plage de la Côte Sauvage',
-                    description='Magnifique plage pour le surf avec des vagues parfaites pour débuter',
-                    distance='5 km',
-                    difficulty='Facile',
-                    activity_type='surf',
-                    image_url='/static/images/surf.jpg'
-                ),
-                Activity(
-                    name='Forêt de Fontainebleau',
-                    description='Parcours VTT dans les sentiers forestiers avec des dénivelés variés',
-                    distance='15 km',
-                    difficulty='Intermédiaire',
-                    activity_type='vtt',
-                    image_url='/static/images/vtt.jpg'
-                ),
-                Activity(
-                    name='Sentier des Crêtes',
-                    description='Randonnée panoramique avec vue sur la vallée et les montagnes',
-                    distance='8 km',
-                    difficulty='Facile',
-                    activity_type='randonnee',
-                    image_url='/static/images/randonnee.jpg'
-                ),
-                Activity(
-                    name='Rocher de l\'Aigle',
-                    description='Site d\'escalade réputé avec des voies de tous niveaux',
-                    distance='12 km',
-                    difficulty='Difficile',
-                    activity_type='escalade',
-                    image_url='/static/images/escalade.jpg'
-                )
-            ]
-            
-            for activity in activities:
-                db.session.add(activity)
-        
-        db.session.commit()
-        print("Base de données initialisée !")
-        print("Admin par défaut: username='admin', password='On est tous dans la m3rde !'")
-
 if __name__ == '__main__':
-    init_db()
     print("Démarrage du serveur...")
     app.run(debug=True, host='127.0.0.1', port=5000)
