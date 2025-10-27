@@ -601,15 +601,28 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
+        logger.info(f"Tentative de connexion pour: {username}")
+        
         user = User.query.filter_by(username=username).first()
         
-        if user and check_password_hash(user.password_hash, password):
+        if user:
+            logger.info(f"Utilisateur trouvé: {user.username}, is_admin={user.is_admin}")
+            logger.info(f"Longueur du hash: {len(user.password_hash) if user.password_hash else 0}")
+            
+            if check_password_hash(user.password_hash, password):
+                logger.info(f"✓ Mot de passe correct pour {username}")
             session['user_id'] = user.id
             session['username'] = user.username
             session['is_admin'] = user.is_admin
             flash('Connexion réussie !', 'success')
-            return redirect(url_for('admin' if user.is_admin else 'index'))
+                redirect_url = url_for('admin') if user.is_admin else url_for('index')
+                logger.info(f"Redirection vers: {redirect_url}")
+                return redirect(redirect_url)
+            else:
+                logger.warning(f"✗ Mot de passe incorrect pour {username}")
         else:
+            logger.warning(f"✗ Utilisateur non trouvé: {username}")
+        
             flash('Nom d\'utilisateur ou mot de passe incorrect.', 'error')
     
     return render_template('admin_login.html')
