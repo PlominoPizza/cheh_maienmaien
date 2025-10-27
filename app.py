@@ -149,13 +149,24 @@ def initialize_db():
             db.create_all()
             logger.info("Tables de base de données créées/vérifiées.")
             
-            # Créer l'admin automatiquement s'il n'existe pas
+            # S'assurer que l'admin existe avec le bon mot de passe
             admin_user = User.query.filter_by(username='admin').first()
+            admin_password = app.config.get('ADMIN_MDP')
+            
             if admin_user:
                 logger.info("Utilisateur admin trouvé dans la base de données")
+                # Si ADMIN_MDP est défini, mettre à jour le mot de passe
+                if admin_password:
+                    from werkzeug.security import check_password_hash
+                    # Vérifier si le mot de passe actuel correspond
+                    if not check_password_hash(admin_user.password_hash, admin_password):
+                        logger.info("Mise à jour du mot de passe admin")
+                        admin_user.password_hash = generate_password_hash(admin_password)
+                        admin_user.is_admin = True
+                        db.session.commit()
+                        logger.info("Mot de passe admin mis à jour")
             else:
                 # Créer l'admin avec le mot de passe depuis la variable d'environnement
-                admin_password = app.config.get('ADMIN_MDP')
                 if admin_password:
                     admin_user = User(
                         username='admin',
