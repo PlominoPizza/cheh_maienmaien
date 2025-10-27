@@ -14,7 +14,18 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Charger la version de l'application
+VERSION_FILE = os.path.join(os.path.dirname(__file__), 'VERSION')
+if os.path.exists(VERSION_FILE):
+    with open(VERSION_FILE, 'r') as f:
+        APP_VERSION = f.read().strip()
+else:
+    APP_VERSION = 'unknown'
+
+logger.info(f"Application version: {APP_VERSION}")
+
 app = Flask(__name__)
+app.config['APP_VERSION'] = APP_VERSION
 
 # Configuration de sécurité
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'chez-meme-super-secret-key-2024-development-only')
@@ -90,6 +101,22 @@ class Photo(db.Model):
     display_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+class WallOfShame(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    person_name = db.Column(db.String(100), nullable=False)
+    image_url = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    display_order = db.Column(db.Integer, default=0)
+
+class Leaderboard(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    person_name = db.Column(db.String(100), nullable=False)
+    visit_count = db.Column(db.Integer, default=0)
+    rank_position = db.Column(db.Integer, default=0)
+    last_visit = db.Column(db.Date)
+    image_url = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 # Fonctions utilitaires pour les images
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -148,6 +175,37 @@ def initialize_db():
             _first_request_done = True
             db.create_all()
             logger.info("Tables de base de données créées/vérifiées.")
+            
+            # Migration v2.0.0 - Ajouter les colonnes manquantes si nécessaire
+            try:
+                from sqlalchemy import inspect, text
+                inspector = inspect(db.engine)
+                existing_tables = inspector.get_table_names()
+                
+                # Ajouter image_url à Leaderboard si la table existe
+                if 'leaderboard' in existing_tables:
+                    columns = [col['name'] for col in inspector.get_columns('leaderboard')]
+                    if 'image_url' not in columns:
+                        logger.info("Migration v2.0.0: Ajout de la colonne image_url à Leaderboard")
+                        if db.engine.dialect.name == 'postgresql':
+                            db.session.execute(text("ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS image_url VARCHAR(200)"))
+                        else:  # SQLite
+                            logger.info("SQLite ne supporte pas ALTER TABLE ADD COLUMN. Utilisez migrate_db.py pour migrer.")
+                        db.session.commit()
+                
+                # Ajouter display_order à WallOfShame si nécessaire
+                if 'wall_of_shame' in existing_tables:
+                    columns = [col['name'] for col in inspector.get_columns('wall_of_shame')]
+                    if 'display_order' not in columns:
+                        logger.info("Migration v2.0.0: Ajout de la colonne display_order à WallOfShame")
+                        if db.engine.dialect.name == 'postgresql':
+                            db.session.execute(text("ALTER TABLE wall_of_shame ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0"))
+                        else:  # SQLite
+                            logger.info("SQLite ne supporte pas ALTER TABLE ADD COLUMN. Utilisez migrate_db.py pour migrer.")
+                        db.session.commit()
+            except Exception as migration_error:
+                logger.warning(f"Migration automatique: {migration_error}")
+                logger.info("Si des erreurs persistent, exécutez: python migrate_db.py")
             
             # Migrer la colonne password_hash si nécessaire (pour les anciennes installations)
             try:
@@ -279,6 +337,16 @@ def appartement():
 def activites():
     activities = Activity.query.all()
     return render_template('activites.html', activities=activities)
+
+@app.route('/wall-of-shame')
+def wall_of_shame():
+    wall_entries = WallOfShame.query.order_by(WallOfShame.display_order, WallOfShame.created_at.desc()).all()
+    return render_template('wall_of_shame.html', wall_entries=wall_entries)
+
+@app.route('/leaderboard')
+def leaderboard():
+    leaders = Leaderboard.query.order_by(Leaderboard.rank_position, Leaderboard.visit_count.desc()).all()
+    return render_template('leaderboard.html', leaders=leaders)
 
 @app.route('/reserver', methods=['GET', 'POST'])
 def reserver():
@@ -574,6 +642,192 @@ def admin_update_all_photos():
         
     except Exception as e:
         logger.error(f"Erreur lors de la mise à jour globale: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+# Routes admin pour Wall of Shame
+@app.route('/admin/wall-of-shame')
+@admin_required
+def admin_wall_of_shame():
+    wall_entries = WallOfShame.query.order_by(WallOfShame.display_order, WallOfShame.created_at.desc()).all()
+    return render_template('admin_wall_of_shame.html', wall_entries=wall_entries)
+
+@app.route('/admin/wall-of-shame/upload', methods=['POST'])
+@admin_required
+def admin_upload_wall_entry():
+    try:
+        person_name = request.form.get('person_name', '')
+        if not person_name:
+            return jsonify({'success': False, 'message': 'Le nom de la personne est requis'})
+        
+        if 'photo' not in request.files:
+            return jsonify({'success': False, 'message': 'Aucun fichier sélectionné'})
+        
+        file = request.files['photo']
+        if file and file.filename and allowed_file(file.filename):
+            # Générer un nom de fichier unique
+            filename = secure_filename(file.filename)
+            name, ext = os.path.splitext(filename)
+            unique_filename = f"{uuid.uuid4().hex}{ext}"
+            
+            # Sauvegarder le fichier
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            file.save(file_path)
+            
+            # Redimensionner l'image
+            resize_image(file_path)
+            
+            # Créer l'entrée en base de données
+            wall_entry = WallOfShame(
+                person_name=person_name,
+                image_url=unique_filename,
+                display_order=WallOfShame.query.count()
+            )
+            
+            db.session.add(wall_entry)
+            db.session.commit()
+            
+            logger.info(f"Entrée Wall of Shame ajoutée pour {person_name}")
+            return jsonify({'success': True, 'message': f'Entrée ajoutée pour {person_name} !'})
+        else:
+            return jsonify({'success': False, 'message': 'Format de fichier non autorisé'})
+            
+    except Exception as e:
+        logger.error(f"Erreur lors de l'ajout d'entrée Wall of Shame: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+@app.route('/admin/wall-of-shame/delete/<int:entry_id>', methods=['DELETE'])
+@admin_required
+def admin_delete_wall_entry(entry_id):
+    try:
+        entry = WallOfShame.query.get_or_404(entry_id)
+        
+        # Supprimer le fichier physique
+        if entry.image_url:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], entry.image_url)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        
+        db.session.delete(entry)
+        db.session.commit()
+        
+        logger.info(f"Entrée Wall of Shame {entry_id} supprimée")
+        return jsonify({'success': True, 'message': 'Entrée supprimée avec succès !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+# Routes admin pour Leaderboard
+@app.route('/admin/leaderboard')
+@admin_required
+def admin_leaderboard():
+    leaders = Leaderboard.query.order_by(Leaderboard.rank_position, Leaderboard.visit_count.desc()).all()
+    return render_template('admin_leaderboard.html', leaders=leaders)
+
+@app.route('/admin/leaderboard/add', methods=['POST'])
+@admin_required
+def admin_add_leader():
+    try:
+        person_name = request.form.get('person_name', '')
+        visit_count = int(request.form.get('visit_count', 0))
+        
+        if not person_name:
+            return jsonify({'success': False, 'message': 'Le nom de la personne est requis'})
+        
+        # Gérer l'upload de photo
+        image_url = None
+        if 'photo' in request.files:
+            file = request.files['photo']
+            if file and file.filename and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                name, ext = os.path.splitext(filename)
+                unique_filename = f"{uuid.uuid4().hex}{ext}"
+                
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+                file.save(file_path)
+                
+                resize_image(file_path)
+                image_url = unique_filename
+        
+        leader = Leaderboard(
+            person_name=person_name,
+            visit_count=visit_count,
+            rank_position=Leaderboard.query.count() + 1,
+            image_url=image_url
+        )
+        
+        db.session.add(leader)
+        db.session.commit()
+        
+        logger.info(f"Leader ajouté: {person_name}")
+        return jsonify({'success': True, 'message': f'Leader {person_name} ajouté avec succès !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de l'ajout de leader: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+@app.route('/admin/leaderboard/update/<int:leader_id>', methods=['POST'])
+@admin_required
+def admin_update_leader(leader_id):
+    try:
+        leader = Leaderboard.query.get_or_404(leader_id)
+        leader.person_name = request.form.get('person_name', leader.person_name)
+        leader.visit_count = int(request.form.get('visit_count', leader.visit_count))
+        
+        # Gérer l'upload de photo
+        if 'photo' in request.files:
+            file = request.files['photo']
+            if file and file.filename and allowed_file(file.filename):
+                # Supprimer l'ancienne photo si elle existe
+                if leader.image_url:
+                    old_file_path = os.path.join(app.config['UPLOAD_FOLDER'], leader.image_url)
+                    if os.path.exists(old_file_path):
+                        os.remove(old_file_path)
+                
+                filename = secure_filename(file.filename)
+                name, ext = os.path.splitext(filename)
+                unique_filename = f"{uuid.uuid4().hex}{ext}"
+                
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+                file.save(file_path)
+                
+                resize_image(file_path)
+                leader.image_url = unique_filename
+        
+        db.session.commit()
+        
+        logger.info(f"Leader {leader_id} mis à jour")
+        return jsonify({'success': True, 'message': 'Leader mis à jour avec succès !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la mise à jour: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
+
+@app.route('/admin/leaderboard/delete/<int:leader_id>', methods=['DELETE'])
+@admin_required
+def admin_delete_leader(leader_id):
+    try:
+        leader = Leaderboard.query.get_or_404(leader_id)
+        
+        # Supprimer l'image si elle existe
+        if leader.image_url:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], leader.image_url)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        
+        db.session.delete(leader)
+        db.session.commit()
+        
+        logger.info(f"Leader {leader_id} supprimé")
+        return jsonify({'success': True, 'message': 'Leader supprimé avec succès !'})
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la suppression: {e}")
         db.session.rollback()
         return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
 

@@ -21,6 +21,15 @@
                 <li class="nav-item">
                     <a href="{{ url_for('index') }}" class="nav-link">Accueil</a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('activites') }}" class="nav-link">Activités</a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('wall_of_shame') }}" class="nav-link">Wall of Shame</a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('leaderboard') }}" class="nav-link">Leaderboard</a>
+                </li>
                 {% if session.is_admin %}
                 <li class="nav-item">
                     <a href="{{ url_for('admin') }}" class="nav-link admin-link">🛠️ Admin (c'est open bar)</a>
@@ -73,15 +82,6 @@
                         <a href="#" title="Facebook"><i class="fab fa-facebook"></i></a>
                         <a href="#" title="TikTok"><i class="fab fa-tiktok"></i></a>
                     </div>
-                </div>
-                <div class="footer-section">
-                    <h4>Mes liens</h4>
-                    <ul>
-                        <li><a href="{{ url_for('calendrier') }}">Mes disponibilités</a></li>
-                        <li><a href="{{ url_for('reserver') }}">Réserver</a></li>
-                        <li><a href="{{ url_for('appartement') }}">Ma maison</a></li>
-                        <li><a href="{{ url_for('activites') }}">Biarritz</a></li>
-                    </ul>
                 </div>
                 <div class="footer-section">
                     <h4>Comment me joindre</h4>

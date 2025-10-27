@@ -2,6 +2,16 @@
 
 Application web Flask pour gérer les réservations d'un appartement à Biarritz.
 
+**Version actuelle : 2.0.0**
+
+## 📋 Nouveautés v2.0.0
+
+- ✨ **Wall of Shame** - Page publique et gestion admin
+- 🏆 **Leaderboard** - Classement des invités avec photos
+- 📱 **Responsive design** - Optimisé pour tous les écrans
+- 🔄 **Système de migration** - Transition seamless depuis v1.x
+- 🎨 **Interface améliorée** - Navigation simplifiée et mise à jour
+
 ## 🚀 Déploiement Rapide sur Render
 
 ### 1. Configuration Render
@@ -47,6 +57,20 @@ python update_admin_password.py
 # Lancement
 python app.py
 ```
+
+### 4. Migration depuis v1.x vers v2.0.0
+
+Si vous migrez depuis une version précédente :
+
+```bash
+# Migration de la base de données
+python migrate_db.py
+
+# Vérifier que tout fonctionne
+python app.py
+```
+
+**Note** : Les migrations sont automatiques pour PostgreSQL. Pour SQLite, exécutez `python migrate_db.py` pour ajouter les nouvelles colonnes.
 
 ## 📁 Structure
 

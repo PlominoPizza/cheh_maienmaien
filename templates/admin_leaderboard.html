@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Leaderboard{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>🏆 Gestion du Leaderboard</h1>
+        <a href="{{ url_for('admin') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Retour au dashboard
+        </a>
+    </div>
+
+    <!-- Formulaire d'ajout -->
+    <div class="admin-section">
+        <h2>Ajouter un leader</h2>
+        <form id="addLeaderForm" class="admin-form" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="person_name">Nom de la personne</label>
+                <input type="text" id="person_name" name="person_name" required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="visit_count">Nombre de nuits</label>
+                    <input type="number" id="visit_count" name="visit_count" min="0" value="0" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="photo">Photo (optionnel)</label>
+                    <input type="file" id="photo" name="photo" accept="image/*">
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Ajouter
+            </button>
+        </form>
+    </div>
+
+    <!-- Liste des leaders -->
+    <div class="admin-section">
+        <h2>Leaders actuels ({{ leaders|length }})</h2>
+        
+        {% if leaders %}
+        <div class="leaders-list">
+            {% for leader in leaders %}
+            <div class="leader-item" data-id="{{ leader.id }}">
+                <div class="leader-display">
+                    {% if leader.image_url %}
+                    <img src="{{ url_for('static', filename='uploads/images/' + leader.image_url) }}" 
+                         alt="{{ leader.person_name }}" 
+                         class="leader-thumb">
+                    {% endif %}
+                    <span class="leader-rank">{{ loop.index }}.</span>
+                    <h4>{{ leader.person_name }}</h4>
+                    <span class="leader-visits">{{ leader.visit_count }} nuits</span>
+                </div>
+                
+                <div class="leader-actions">
+                    <button class="btn btn-primary btn-small" onclick="editLeader({{ leader.id }}, '{{ leader.person_name }}', {{ leader.visit_count }})">
+                        <i class="fas fa-edit"></i> Modifier
+                    </button>
+                    <button class="btn btn-danger btn-small" onclick="deleteLeader({{ leader.id }})">
+                        <i class="fas fa-trash"></i> Supprimer
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="no-data">Aucun leader pour le moment.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal d'édition -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Modifier le leader</h2>
+        <form id="editLeaderForm" enctype="multipart/form-data">
+            <input type="hidden" id="edit_leader_id" name="leader_id">
+            
+            <div class="form-group">
+                <label for="edit_person_name">Nom de la personne</label>
+                <input type="text" id="edit_person_name" name="person_name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_visit_count">Nombre de nuits</label>
+                <input type="number" id="edit_visit_count" name="visit_count" min="0" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit_photo">Photo (optionnel)</label>
+                <input type="file" id="edit_photo" name="photo" accept="image/*">
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.admin-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+}
+
+.admin-section {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+.leaders-list {
+    margin-top: 20px;
+}
+
+.leader-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    transition: background 0.3s ease;
+}
+
+.leader-item:hover {
+    background: #e9ecef;
+}
+
+.leader-display {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 1;
+}
+
+.leader-thumb {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #ddd;
+}
+
+.leader-rank {
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #667eea;
+    min-width: 30px;
+}
+
+.leader-item h4 {
+    margin: 0;
+    flex: 1;
+}
+
+.leader-visits {
+    color: #666;
+}
+
+.leader-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-small {
+    padding: 8px 15px;
+    font-size: 0.9rem;
+}
+
+.no-data {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    padding: 20px;
+}
+
+.modal-content {
+    background-color: white;
+    margin: 50px auto;
+    padding: 30px;
+    border-radius: 15px;
+    max-width: 500px;
+    position: relative;
+}
+
+.close {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.close:hover {
+    color: #000;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+</style>
+
+<script>
+const addForm = document.getElementById('addLeaderForm');
+const modal = document.getElementById('editModal');
+const editForm = document.getElementById('editLeaderForm');
+const closeBtn = document.querySelector('.close');
+
+addForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(addForm);
+    
+    try {
+        const response = await fetch('/admin/leaderboard/add', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            addForm.reset();
+            location.reload();
+        } else {
+            alert('Erreur: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Erreur lors de l\'ajout');
+    }
+});
+
+function editLeader(id, name, visits) {
+    document.getElementById('edit_leader_id').value = id;
+    document.getElementById('edit_person_name').value = name;
+    document.getElementById('edit_visit_count').value = visits;
+    modal.style.display = 'block';
+}
+
+function closeModal() {
+    modal.style.display = 'none';
+}
+
+closeBtn.onclick = closeModal;
+
+window.onclick = function(event) {
+    if (event.target == modal) {
+        closeModal();
+    }
+}
+
+editForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(editForm);
+    const leaderId = document.getElementById('edit_leader_id').value;
+    
+    try {
+        const response = await fetch(`/admin/leaderboard/update/${leaderId}`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            closeModal();
+            location.reload();
+        } else {
+            alert('Erreur: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Erreur lors de la modification');
+    }
+});
+
+async function deleteLeader(leaderId) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce leader ?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/leaderboard/delete/${leaderId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Erreur: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Erreur lors de la suppression');
+    }
+}
+</script>
+{% endblock %}
+

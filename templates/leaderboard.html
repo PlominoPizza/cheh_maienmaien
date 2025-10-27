@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard - Chez Mémé{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>🏆 Leaderboard</h1>
+        <p>Le classement de ceux qui passent le plus de nuits chez Mémé</p>
+    </div>
+</section>
+
+<section class="leaderboard-section">
+    <div class="container">
+        <div class="leaderboard-container">
+            {% for leader in leaders %}
+            <div class="leader-card {% if loop.index <= 3 %}top-{{ loop.index }}{% endif %}">
+                {% if leader.image_url %}
+                <div class="leader-photo">
+                    <img src="{{ url_for('static', filename='uploads/images/' + leader.image_url) }}" 
+                         alt="{{ leader.person_name }}">
+                </div>
+                {% endif %}
+                <div class="leader-rank">
+                    {% if loop.index == 1 %}
+                        🥇
+                    {% elif loop.index == 2 %}
+                        🥈
+                    {% elif loop.index == 3 %}
+                        🥉
+                    {% else %}
+                        <span class="rank-number">{{ loop.index }}</span>
+                    {% endif %}
+                </div>
+                <div class="leader-info">
+                    <h3>{{ leader.person_name }}</h3>
+                    <div class="leader-stats">
+                        <span class="visit-count">
+                            <i class="fas fa-bed"></i>
+                            {{ leader.visit_count }} nuits
+                        </span>
+                        {% if leader.last_visit %}
+                        <span class="last-visit">
+                            <i class="fas fa-calendar"></i>
+                            Dernière visite: {{ leader.last_visit }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            
+            {% if leaders|length == 0 %}
+            <div class="no-leaders-message">
+                <i class="fas fa-trophy"></i>
+                <p>Personne n'a encore de statistiques !</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<style>
+.leaderboard-section {
+    padding: 40px 0;
+    min-height: 60vh;
+}
+
+.leaderboard-container {
+    max-width: 800px;
+    margin: 40px auto 0;
+}
+
+.leader-card {
+    background: white;
+    border-radius: 15px;
+    padding: 25px 25px 25px 120px;
+    margin-bottom: 20px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+}
+
+.leader-photo {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.leader-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.leader-card:hover {
+    transform: translateX(5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.leader-card.top-1 {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    color: white;
+}
+
+.leader-card.top-2 {
+    background: linear-gradient(135deg, #C0C0C0 0%, #808080 100%);
+    color: white;
+}
+
+.leader-card.top-3 {
+    background: linear-gradient(135deg, #CD7F32 0%, #8B4513 100%);
+    color: white;
+}
+
+.leader-rank {
+    font-size: 3rem;
+    min-width: 80px;
+    text-align: center;
+}
+
+.rank-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #667eea;
+}
+
+.leader-info {
+    flex: 1;
+}
+
+.leader-info h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.5rem;
+}
+
+.leader-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.leader-stats span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
+}
+
+.leader-card.top-1 .leader-stats span,
+.leader-card.top-2 .leader-stats span,
+.leader-card.top-3 .leader-stats span {
+    opacity: 0.9;
+}
+
+.visit-count {
+    font-weight: 600;
+}
+
+.no-leaders-message {
+    text-align: center;
+    padding: 60px 20px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.no-leaders-message i {
+    font-size: 4rem;
+    color: #667eea;
+    margin-bottom: 20px;
+}
+
+.no-leaders-message p {
+    font-size: 1.2rem;
+    color: #666;
+}
+
+@media (max-width: 768px) {
+    .leader-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .leader-rank {
+        font-size: 2.5rem;
+    }
+    
+    .leader-stats {
+        justify-content: center;
+    }
+}
+</style>
+{% endblock %}
+
