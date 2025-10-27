@@ -174,30 +174,33 @@ def initialize_db():
             admin_user = User.query.filter_by(username='admin').first()
             admin_password = app.config.get('ADMIN_MDP')
             
-            if admin_user:
-                logger.info("Utilisateur admin trouvé dans la base de données")
-                # Si ADMIN_MDP est défini, mettre à jour le mot de passe
-                if admin_password:
-                    from werkzeug.security import check_password_hash
-                    # Vérifier si le mot de passe actuel correspond
-                    if not check_password_hash(admin_user.password_hash, admin_password):
-                        logger.info("Mise à jour du mot de passe admin")
-                        admin_user.password_hash = generate_password_hash(admin_password)
-                        admin_user.is_admin = True
-                        db.session.commit()
-                        logger.info("Mot de passe admin mis à jour")
-            else:
-                # Créer l'admin avec le mot de passe depuis la variable d'environnement
-                if admin_password:
+            if admin_password:
+                logger.info(f"ADMIN_MDP détecté - Mise à jour du mot de passe admin")
+                
+                # Générer le nouveau hash
+                new_password_hash = generate_password_hash(admin_password)
+                
+                if admin_user:
+                    logger.info("Utilisateur admin trouvé - Mise à jour du mot de passe")
+                    admin_user.password_hash = new_password_hash
+                    admin_user.is_admin = True
+                    db.session.commit()
+                    logger.info("✓ Mot de passe admin mis à jour avec succès")
+                else:
+                    # Créer l'admin
+                    logger.info("Création d'un nouvel utilisateur admin")
                     admin_user = User(
                         username='admin',
                         email='admin@chez-meme.com',
-                        password_hash=generate_password_hash(admin_password),
+                        password_hash=new_password_hash,
                         is_admin=True
                     )
                     db.session.add(admin_user)
                     db.session.commit()
-                    logger.info("Utilisateur admin créé automatiquement")
+                    logger.info("✓ Utilisateur admin créé avec succès")
+            else:
+                if admin_user:
+                    logger.info("Utilisateur admin trouvé (mot de passe inchangé)")
                 else:
                     logger.warning("ADMIN_MDP non défini - l'admin ne peut pas être créé")
             

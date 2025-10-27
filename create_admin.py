@@ -16,7 +16,7 @@ def create_admin():
         print("=" * 60)
         
         # Récupérer le mot de passe depuis les variables d'environnement
-        admin_password = os.environ.get('ADMIN_MDP', 'Olo fais moi le Q !')
+        admin_password = os.environ.get('ADMIN_MDP')
         
         if not admin_password:
             print("\n[ERREUR] ADMIN_MDP n'est pas défini")
@@ -25,6 +25,7 @@ def create_admin():
         
         print(f"\n[MOT DE PASSE] Utilisation du mot de passe depuis ADMIN_MDP")
         print(f"[LONGUEUR] {len(admin_password)} caractères")
+        print(f"[PREMIERS CHARS] {admin_password[:5]}...")
         
         # Chercher l'admin existant
         admin_user = User.query.filter_by(username='admin').first()
@@ -50,8 +51,8 @@ def create_admin():
         
         print("\n" + "=" * 60)
         print("[CONNEXION] Vous pouvez maintenant vous connecter avec :")
-        print("  Identifiant: admin")
-        print("  Mot de passe: Olo fais moi le Q !")
+        print(f"  Identifiant: admin")
+        print(f"  Mot de passe: {admin_password}")
         print("=" * 60)
 
 if __name__ == '__main__':
