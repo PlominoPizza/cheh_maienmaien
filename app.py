@@ -60,7 +60,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(120), nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -148,6 +148,27 @@ def initialize_db():
             _first_request_done = True
             db.create_all()
             logger.info("Tables de base de données créées/vérifiées.")
+            
+            # Migrer la colonne password_hash si nécessaire (pour les anciennes installations)
+            try:
+                database_url = os.environ.get('DATABASE_URL', 'sqlite:///chez_meme.db')
+                if database_url.startswith('postgresql://') or database_url.startswith('postgres://'):
+                    # Vérifier si on peut obtenir le schéma de la table
+                    db.session.execute(db.text("SELECT password_hash FROM \"user\" LIMIT 1"))
+                    # Si ça marche, essayer de modifier la colonne
+                    try:
+                        db.session.execute(db.text("""
+                            ALTER TABLE "user" 
+                            ALTER COLUMN password_hash TYPE VARCHAR(256);
+                        """))
+                        db.session.commit()
+                        logger.info("Colonne password_hash migrée vers VARCHAR(256)")
+                    except Exception as e:
+                        if "does not exist" not in str(e) and "already has type" not in str(e):
+                            logger.warning(f"Erreur lors de la migration de la colonne: {e}")
+                        db.session.rollback()
+            except Exception as e:
+                logger.info("Migration de colonne non nécessaire")
             
             # S'assurer que l'admin existe avec le bon mot de passe
             admin_user = User.query.filter_by(username='admin').first()
