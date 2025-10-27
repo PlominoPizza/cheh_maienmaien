@@ -607,14 +607,13 @@ def login():
         
         if user:
             logger.info(f"Utilisateur trouvé: {user.username}, is_admin={user.is_admin}")
-            logger.info(f"Longueur du hash: {len(user.password_hash) if user.password_hash else 0}")
             
             if check_password_hash(user.password_hash, password):
                 logger.info(f"✓ Mot de passe correct pour {username}")
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['is_admin'] = user.is_admin
-            flash('Connexion réussie !', 'success')
+                session['user_id'] = user.id
+                session['username'] = user.username
+                session['is_admin'] = user.is_admin
+                flash('Connexion réussie !', 'success')
                 redirect_url = url_for('admin') if user.is_admin else url_for('index')
                 logger.info(f"Redirection vers: {redirect_url}")
                 return redirect(redirect_url)
@@ -623,7 +622,7 @@ def login():
         else:
             logger.warning(f"✗ Utilisateur non trouvé: {username}")
         
-            flash('Nom d\'utilisateur ou mot de passe incorrect.', 'error')
+        flash('Nom d\'utilisateur ou mot de passe incorrect.', 'error')
     
     return render_template('admin_login.html')
 
