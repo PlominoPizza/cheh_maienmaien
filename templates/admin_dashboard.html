@@ -4,11 +4,25 @@
 
 {% block content %}
 <div class="admin-container">
+    {% if pending_count > 0 %}
+    <!-- Alerte pour les réservations en attente -->
+    <div class="admin-alert" style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 20px; margin-bottom: 30px; display: flex; align-items: center; gap: 15px;">
+        <div style="font-size: 2rem;">🔔</div>
+        <div style="flex: 1;">
+            <h3 style="margin: 0 0 5px 0; color: #856404;">{{ pending_count }} réservation(s) en attente d'approbation</h3>
+            <p style="margin: 0; color: #856404;">Vous avez des demandes de réservation qui nécessitent votre attention.</p>
+        </div>
+        <a href="{{ url_for('admin_pending_reservations') }}" class="btn btn-warning">
+            <i class="fas fa-bell"></i> Voir les réservations en attente
+        </a>
+    </div>
+    {% endif %}
+    
     <div class="admin-header">
         <h1>🛠️ Administration des Réservations</h1>
         <div class="admin-actions">
-            <a href="{{ url_for('admin_add_reservation') }}" class="btn btn-success">
-                <i class="fas fa-plus"></i> Ajouter une réservation
+            <a href="{{ url_for('admin_pending_reservations') }}" class="btn btn-warning">
+                <i class="fas fa-clipboard-list"></i> Gestion des réservations
             </a>
             <a href="{{ url_for('admin_photos') }}" class="btn btn-info">
                 <i class="fas fa-images"></i> Gérer les photos

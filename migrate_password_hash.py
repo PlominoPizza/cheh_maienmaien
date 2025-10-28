@@ -54,3 +54,4 @@ def migrate_password_hash_column():
 if __name__ == '__main__':
     migrate_password_hash_column()
 
+

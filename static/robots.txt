@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# Blocquer l'indexation des images du Wall of Shame
+Disallow: /static/uploads/images/
+Disallow: /wall-of-shame
+

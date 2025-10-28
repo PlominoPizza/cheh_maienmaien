@@ -22,28 +22,23 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="start_date">Date d'arrivée</label>
-                        <input type="date" id="start_date" name="start_date" required>
+                        <input type="date" id="start_date" name="start_date" value="{{ prefilled_data.start_date }}" required>
                     </div>
                     <div class="form-group">
                         <label for="end_date">Date de départ</label>
-                        <input type="date" id="end_date" name="end_date" required>
+                        <input type="date" id="end_date" name="end_date" value="{{ prefilled_data.end_date }}" required>
                     </div>
                 </div>
                 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="guest_name">Nom complet</label>
-                        <input type="text" id="guest_name" name="guest_name" placeholder="Votre nom complet" required>
+                        <input type="text" id="guest_name" name="guest_name" placeholder="Votre nom complet" value="{{ prefilled_data.guest_name }}" required>
                     </div>
                     <div class="form-group">
-                        <label for="guest_email">Email</label>
-                        <input type="email" id="guest_email" name="guest_email" placeholder="votre@email.com" required>
+                        <label for="nickname">Surnom (optionnel)</label>
+                        <input type="text" id="nickname" name="nickname" placeholder="Votre surnom si vous en avez un">
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="message">Message (optionnel)</label>
-                    <textarea id="message" name="message" rows="4" placeholder="Dites-nous pourquoi vous voulez venir chez Mémé, si vous avez des besoins particuliers, etc."></textarea>
                 </div>
                 
                 <div class="form-info">
@@ -58,7 +53,7 @@
                 
                 <button type="submit" class="btn btn-primary btn-large">
                     <i class="fas fa-paper-plane"></i>
-                    Envoyer la demande
+                    Confirmer la réservation
                 </button>
             </form>
             

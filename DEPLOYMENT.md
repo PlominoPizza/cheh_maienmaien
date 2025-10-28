@@ -170,3 +170,4 @@ python migrate_db.py --reset
 **Date** : 2025-01-XX  
 **Statut** : ✅ Prêt pour déploiement
 
+

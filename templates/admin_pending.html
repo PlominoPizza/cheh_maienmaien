@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des réservations - Admin{% endblock %}
+
+{% block content %}
+<div class="container admin-container">
+    <div class="admin-header">
+        <h1>📋 Gestion des réservations</h1>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_add_reservation') }}" class="btn btn-success">
+                <i class="fas fa-plus"></i> Ajouter une réservation
+            </a>
+            <a href="{{ url_for('admin') }}" class="btn btn-secondary">← Retour au tableau de bord</a>
+        </div>
+    </div>
+    
+    <!-- Suppression par dates -->
+    <div class="admin-bulk-delete" style="background: #fff3cd; border: 2px solid #ffc107; padding: 20px; border-radius: 10px; margin-bottom: 30px;">
+        <h3 style="margin-top: 0; color: #856404;">⚠️ Outil de nettoyage - Supprimer des réservations</h3>
+        <p style="color: #856404; margin-bottom: 15px;">En cas d'attaque, utilisez cet outil pour supprimer toutes les réservations entre deux dates.</p>
+        <form method="POST" action="{{ url_for('admin_delete_reservations_range') }}" 
+              onsubmit="return confirm('ATTENTION: Cette action supprimera TOUTES les réservations entre les dates sélectionnées. Êtes-vous sûr ?');">
+            <div style="display: flex; gap: 15px; align-items: end;">
+                <div style="flex: 1;">
+                    <label for="delete-start-date">Date de début:</label>
+                    <input type="date" id="delete-start-date" name="start_date" required class="form-control">
+                </div>
+                <div style="flex: 1;">
+                    <label for="delete-end-date">Date de fin:</label>
+                    <input type="date" id="delete-end-date" name="end_date" required class="form-control">
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-danger">🗑️ Supprimer les réservations</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="admin-stats">
+        <div class="stat-card">
+            <span class="stat-number">{{ pending_reservations|length }}</span>
+            <span class="stat-label">Réservations en attente</span>
+        </div>
+    </div>
+
+    <!-- Formulaire de recherche -->
+    <div class="admin-search">
+        <form method="POST" action="{{ url_for('admin_search_pending') }}" class="search-form">
+            <div class="search-group">
+                <input type="text" name="search_term" class="search-input" 
+                       placeholder="Rechercher par nom ou surnom..." 
+                       value="{{ search_term or '' }}">
+                <button type="submit" class="btn btn-primary">🔍 Rechercher</button>
+            </div>
+        </form>
+        
+        <div class="admin-bulk-actions">
+            <form method="POST" action="{{ url_for('admin_delete_all_pending') }}" 
+                  onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer toutes les réservations en attente ?');">
+                <button type="submit" class="btn btn-danger">🗑️ Supprimer toutes les réservations</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des réservations en attente -->
+    {% if pending_reservations %}
+    <div class="pending-reservations-list">
+        {% for pending in pending_reservations %}
+        <div class="pending-reservation-card">
+            <div class="reservation-header">
+                <div class="reservation-info">
+                    <h3>📅 {{ pending.guest_name }}</h3>
+                    {% if pending.nickname %}
+                    <p class="nickname">({{ pending.nickname }})</p>
+                    {% endif %}
+                </div>
+                <div class="reservation-dates">
+                    <span class="date-badge">
+                        {{ pending.start_date.strftime('%d/%m/%Y') }} → {{ pending.end_date.strftime('%d/%m/%Y') }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="reservation-details">
+                <div class="detail-item">
+                    <strong>📅 Dates:</strong> 
+                    Du {{ pending.start_date.strftime('%d/%m/%Y') }} au {{ pending.end_date.strftime('%d/%m/%Y') }}
+                </div>
+                <div class="detail-item">
+                    <strong>👤 Nom:</strong> {{ pending.guest_name }}
+                    {% if pending.nickname %} <span class="nickname">({{ pending.nickname }})</span>{% endif %}
+                </div>
+                <div class="detail-item">
+                    <strong>🕐 Demandé le:</strong> {{ pending.created_at.strftime('%d/%m/%Y à %H:%M') }}
+                </div>
+                <div class="detail-item">
+                    <strong>🌐 IP:</strong> {{ pending.ip_address }}
+                </div>
+                <div class="detail-item">
+                    <strong>📊 Statut:</strong> 
+                    <span class="status-badge status-{{ pending.status }}">
+                        {% if pending.status == 'pending' %}
+                            ⏳ En attente de validation
+                        {% elif pending.status == 'approved' %}
+                            ✅ Validée
+                        {% elif pending.status == 'expired' %}
+                            ⏰ Passée
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="reservation-actions">
+                <form method="POST" action="{{ url_for('admin_approve_pending', pending_id=pending.id) }}" 
+                      style="display: inline;">
+                    <button type="submit" class="btn btn-success">✅ Approuver</button>
+                </form>
+                <form method="POST" action="{{ url_for('admin_reject_pending', pending_id=pending.id) }}" 
+                      style="display: inline;"
+                      onsubmit="return confirm('Êtes-vous sûr de vouloir rejeter cette réservation ?');">
+                    <button type="submit" class="btn btn-danger">❌ Rejeter</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-reservations">
+        <p>📭 Aucune réservation en attente</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.admin-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.admin-stats {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    text-align: center;
+    flex: 1;
+}
+
+.stat-number {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.admin-search {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.search-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.search-group {
+    flex: 1;
+    display: flex;
+    gap: 10px;
+}
+
+.search-input {
+    flex: 1;
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+}
+
+.admin-bulk-actions {
+    text-align: right;
+}
+
+.pending-reservations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.pending-reservation-card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border-left: 4px solid #ff9800;
+}
+
+.reservation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.reservation-info h3 {
+    margin: 0;
+    color: #333;
+}
+
+.nickname {
+    color: #999;
+    font-style: italic;
+}
+
+.date-badge {
+    background: #ff9800;
+    color: white;
+    padding: 5px 15px;
+    border-radius: 5px;
+    font-weight: 600;
+}
+
+.reservation-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.detail-item {
+    color: #666;
+}
+
+.reservation-actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.no-reservations {
+    text-align: center;
+    padding: 60px 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    color: #999;
+    font-size: 1.2rem;
+}
+
+/* Styles pour les badges de statut */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 5px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.status-pending {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-approved {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-expired {
+    background: #e2e3e5;
+    color: #383d41;
+}
+</style>
+{% endblock %}
+

@@ -88,7 +88,7 @@
         </p>
         
         <div class="reservation-form-container">
-            <form id="reservationForm" class="reservation-form">
+            <form id="reservationForm" class="reservation-form" method="POST" action="/reserver">
                 <div class="form-group">
                     <label for="guest_name">Nom-Prénom ou Surnom</label>
                     <input type="text" id="guest_name" name="guest_name" required>
@@ -152,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert('Réservation confirmée ! Elle apparaît maintenant dans le calendrier.');
+                alert(data.message || 'Votre demande a bien été envoyée pour approbation.');
                 form.reset();
                 // Recharger le calendrier pour afficher la nouvelle réservation
                 location.reload();
@@ -184,6 +184,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Date minimum = aujourd'hui
     const today = new Date().toISOString().split('T')[0];
     startDate.min = today;
+    
+    // Le formulaire va directement soumettre à /api/reservations via reservation.js
 });
 </script>
 {% endblock %}

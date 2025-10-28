@@ -173,7 +173,24 @@ class ReservationForm {
         return reservations.some(res => {
             const startDate = new Date(res.start_date);
             const endDate = new Date(res.end_date);
-            return date >= startDate && date <= endDate;
+            const dateObj = new Date(date);
+            return dateObj >= startDate && dateObj <= endDate;
+        });
+    }
+    
+    // Fonction pour vérifier si les réservations en attente bloquent une nouvelle réservation
+    hasPendingConflict(startDate, endDate, reservations) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        return reservations.some(res => {
+            if (res.type === 'pending') {
+                const resStart = new Date(res.start_date);
+                const resEnd = new Date(res.end_date);
+                // Vérifier si les périodes se chevauchent
+                return start < resEnd && end > resStart;
+            }
+            return false;
         });
     }
 
@@ -209,11 +226,16 @@ class ReservationForm {
                 body: formData
             });
 
-            if (response.ok) {
-                // Rediriger vers la page de confirmation ou le calendrier
-                window.location.href = '/calendrier';
+            const data = await response.json();
+            
+            if (data.success) {
+                window.ChezMemeUtils.showNotification(data.message, 'success');
+                // Rafraîchir les disponibilités
+                this.loadAvailability();
+                // Reset du formulaire
+                form.reset();
             } else {
-                throw new Error('Erreur lors de l\'envoi de la réservation');
+                window.ChezMemeUtils.showNotification(data.message || 'Erreur lors de l\'envoi de la réservation', 'error');
             }
         } catch (error) {
             console.error('Erreur:', error);
@@ -227,7 +249,6 @@ class ReservationForm {
 
     validateForm(formData) {
         const guestName = formData.get('guest_name');
-        const guestEmail = formData.get('guest_email');
         const startDate = formData.get('start_date');
         const endDate = formData.get('end_date');
 
@@ -237,24 +258,21 @@ class ReservationForm {
             return false;
         }
 
-        // Validation de l'email
-        if (!window.ChezMemeUtils.isValidEmail(guestEmail)) {
-            window.ChezMemeUtils.showNotification('Veuillez entrer une adresse email valide', 'error');
-            return false;
-        }
-
         // Validation des dates
         if (!startDate || !endDate) {
             window.ChezMemeUtils.showNotification('Veuillez sélectionner des dates', 'error');
             return false;
         }
 
-        if (!window.ChezMemeUtils.isDateAfter(endDate, startDate)) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        if (end <= start) {
             window.ChezMemeUtils.showNotification('La date de fin doit être après la date de début', 'error');
             return false;
         }
 
-        const today = window.ChezMemeUtils.getTodayString();
+        const today = new Date().toISOString().split('T')[0];
         if (startDate < today) {
             window.ChezMemeUtils.showNotification('Impossible de réserver dans le passé', 'error');
             return false;

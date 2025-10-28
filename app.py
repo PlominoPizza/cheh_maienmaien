@@ -14,6 +14,15 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Charger les variables d'environnement depuis .env
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    logger.info("Fichier .env charge")
+except ImportError:
+    logger.warning("python-dotenv non installe, utilisation des variables d'environnement systeme")
+    pass
+
 # Charger la version de l'application
 VERSION_FILE = os.path.join(os.path.dirname(__file__), 'VERSION')
 if os.path.exists(VERSION_FILE):
@@ -60,6 +69,10 @@ MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
+
+# Configuration hCaptcha
+app.config['HCAPTCHA_SITE_KEY'] = os.environ.get('HCAPTCHA_SITE_KEY', '')
+app.config['HCAPTCHA_SECRET_KEY'] = os.environ.get('HCAPTCHA_SECRET_KEY', '')
 
 # Créer le dossier de téléversement s'il n'existe pas
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -108,6 +121,18 @@ class WallOfShame(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     display_order = db.Column(db.Integer, default=0)
 
+class ReservationPending(db.Model):
+    """Réservations en attente de validation par l'admin"""
+    id = db.Column(db.Integer, primary_key=True)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    guest_name = db.Column(db.String(100), nullable=False)
+    nickname = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='pending')  # pending, approved, expired
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ip_address = db.Column(db.String(50))
+    user_agent = db.Column(db.String(200))
+
 class Leaderboard(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     person_name = db.Column(db.String(100), nullable=False)
@@ -121,13 +146,18 @@ class Leaderboard(db.Model):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def resize_image(image_path, max_width=800, max_height=600):
-    """Redimensionne une image en gardant les proportions"""
+def resize_image(image_path, fixed_width=800):
+    """Redimensionne une image à une largeur fixe de 800px en gardant les proportions"""
     try:
         with Image.open(image_path) as img:
-            # Calculer les nouvelles dimensions
-            ratio = min(max_width/img.width, max_height/img.height)
-            new_size = (int(img.width * ratio), int(img.height * ratio))
+            # Si l'image est déjà plus petite ou égale à 800px, on la laisse telle quelle
+            if img.width <= fixed_width:
+                return True
+            
+            # Calculer la nouvelle hauteur en gardant les proportions
+            ratio = fixed_width / img.width
+            new_height = int(img.height * ratio)
+            new_size = (fixed_width, new_height)
             
             # Redimensionner
             resized_img = img.resize(new_size, Image.Resampling.LANCZOS)
@@ -165,6 +195,19 @@ def not_found_error(error):
 # Routes principales
 # Initialisation automatique de la base de données au démarrage
 _first_request_done = False
+
+@app.after_request
+def add_security_headers(response):
+    """Ajoute des headers pour empêcher l'indexation des images du wall of shame"""
+    # Si c'est une image du wall of shame ou la page elle-même
+    if '/wall-of-shame' in request.path:
+        response.headers['X-Robots-Tag'] = 'noindex, nofollow, noimageindex, noarchive, nosnippet'
+    
+    # Pour toutes les images uploadées
+    if '/static/uploads/images/' in request.path:
+        response.headers['X-Robots-Tag'] = 'noindex, nofollow, noimageindex'
+    
+    return response
 
 @app.before_request
 def initialize_db():
@@ -307,6 +350,11 @@ def initialize_db():
             logger.error(f"Erreur lors de l'initialisation: {e}")
             raise
 
+@app.route('/robots.txt')
+def robots_txt():
+    """Sert le fichier robots.txt pour empêcher l'indexation des images du wall of shame"""
+    return app.send_static_file('robots.txt')
+
 @app.route('/')
 def index():
     photos = Photo.query.order_by(Photo.display_order, Photo.created_at).all()
@@ -338,6 +386,217 @@ def activites():
     activities = Activity.query.all()
     return render_template('activites.html', activities=activities)
 
+@app.route('/api/surf-forecast')
+def api_surf_forecast():
+    """API pour récupérer les prévisions de surf pour Biarritz"""
+    try:
+        # Scraper Surf-Forecast.com pour Grand Plage Biarritz
+        return scrape_surf_forecast()
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des prévisions: {e}")
+        import traceback
+        traceback.print_exc()
+        return api_surf_forecast_mock()
+
+def scrape_surf_forecast():
+    """Récupérer les prévisions pour Côte des Basques"""
+    try:
+        import requests
+        from datetime import datetime, timedelta
+        
+        # Coordonnées de Côte des Basques, Biarritz
+        latitude = 43.475206303831754
+        longitude = -1.5686086721152588
+        
+        # API Open-Meteo pour les prévisions météorologiques marines
+        url = "https://marine-api.open-meteo.com/v1/marine"
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "hourly": "wave_height,wave_period,wave_direction,wind_speed_10m,wind_direction_10m",
+            "timezone": "Europe/Paris",
+            "forecast_days": 10
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            hourly = data.get('hourly', {})
+            
+            # Organiser les données par jour et par période (matin, après-midi, nuit)
+            forecasts = {}
+            
+            for i, timestamp in enumerate(hourly.get('time', [])):
+                date = datetime.fromisoformat(timestamp.replace('+01:00', '+00:00') if '+01:00' in timestamp else timestamp)
+                hour = date.hour
+                
+                # Déterminer la période
+                if 4 <= hour < 12:
+                    period = 'morning'
+                elif 12 <= hour < 20:
+                    period = 'afternoon'
+                else:
+                    period = 'night'
+                
+                date_key = date.date().isoformat()
+                
+                if date_key not in forecasts:
+                    forecasts[date_key] = {
+                        'morning': {'wave_height': [], 'wave_period': [], 'wind_speed': [], 'wind_direction': []},
+                        'afternoon': {'wave_height': [], 'wave_period': [], 'wind_speed': [], 'wind_direction': []},
+                        'night': {'wave_height': [], 'wave_period': [], 'wind_speed': [], 'wind_direction': []}
+                    }
+                
+                # Ajouter les données à la période correspondante
+                wave_height = hourly.get('wave_height', [])[i] if i < len(hourly.get('wave_height', [])) else 0
+                wave_period = hourly.get('wave_period', [])[i] if i < len(hourly.get('wave_period', [])) else 0
+                wind_speed = hourly.get('wind_speed_10m', [])[i] if i < len(hourly.get('wind_speed_10m', [])) else 0
+                wind_direction = hourly.get('wind_direction_10m', [])[i] if i < len(hourly.get('wind_direction_10m', [])) else 0
+                
+                forecasts[date_key][period]['wave_height'].append(wave_height)
+                forecasts[date_key][period]['wave_period'].append(wave_period)
+                forecasts[date_key][period]['wind_speed'].append(wind_speed)
+                forecasts[date_key][period]['wind_direction'].append(wind_direction)
+            
+            # Calculer les moyennes pour chaque période
+            result = []
+            for date_key in sorted(forecasts.keys())[:10]:
+                day_data = forecasts[date_key]
+                
+                def avg(lst):
+                    return round(sum(lst) / len(lst), 1) if lst else 0
+                
+                def avg_int(lst):
+                    return int(sum(lst) / len(lst)) if lst else 0
+                
+                result.append({
+                    'date': date_key,
+                    'periods': {
+                        'morning': {
+                            'wave_height': avg(day_data['morning']['wave_height']),
+                            'wave_period': avg_int(day_data['morning']['wave_period']),
+                            'wind_speed': avg_int([s * 3.6 for s in day_data['morning']['wind_speed']]),  # m/s to km/h
+                            'wind_direction': avg_int(day_data['morning']['wind_direction'])
+                        },
+                        'afternoon': {
+                            'wave_height': avg(day_data['afternoon']['wave_height']),
+                            'wave_period': avg_int(day_data['afternoon']['wave_period']),
+                            'wind_speed': avg_int([s * 3.6 for s in day_data['afternoon']['wind_speed']]),
+                            'wind_direction': avg_int(day_data['afternoon']['wind_direction'])
+                        },
+                        'night': {
+                            'wave_height': avg(day_data['night']['wave_height']),
+                            'wave_period': avg_int(day_data['night']['wave_period']),
+                            'wind_speed': avg_int([s * 3.6 for s in day_data['night']['wind_speed']]),
+                            'wind_direction': avg_int(day_data['night']['wind_direction'])
+                        }
+                    }
+                })
+            
+            # Ajouter les marées pour chaque jour
+            for forecast in result:
+                forecast['tides'] = get_tides_for_date(forecast['date'])
+            
+            return jsonify({
+                'success': True,
+                'forecasts': result
+            })
+        else:
+            logger.error(f"Erreur API Open-Meteo: {response.status_code} - {response.text}")
+            return api_surf_forecast_mock()
+            
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération des prévisions: {e}")
+        import traceback
+        traceback.print_exc()
+        return api_surf_forecast_mock()
+
+def api_surf_forecast_mock():
+    """Version mockée de l'API de prévisions de surf"""
+    from datetime import datetime, timedelta
+    import random
+    
+    forecasts = []
+    base_date = datetime.now()
+    
+    for i in range(10):
+        date = base_date + timedelta(days=i)
+        date_str = date.date().isoformat()
+        
+        # Générer des données réalistes pour Biarritz
+        forecasts.append({
+            'date': date_str,
+            'periods': {
+                'morning': {
+                    'wave_height': round(random.uniform(0.8, 2.5), 1),
+                    'wave_period': random.randint(8, 15),
+                    'wind_speed': random.randint(5, 25),
+                    'wind_direction': random.randint(0, 360)
+                },
+                'afternoon': {
+                    'wave_height': round(random.uniform(1.0, 3.0), 1),
+                    'wave_period': random.randint(10, 18),
+                    'wind_speed': random.randint(10, 30),
+                    'wind_direction': random.randint(0, 360)
+                },
+                'night': {
+                    'wave_height': round(random.uniform(0.9, 2.2), 1),
+                    'wave_period': random.randint(8, 14),
+                    'wind_speed': random.randint(5, 20),
+                    'wind_direction': random.randint(0, 360)
+                }
+            },
+            'tides': {
+                'high_1': {
+                    'time': f"{(8 + i) % 24}:00",
+                    'height': round(3.0 + random.uniform(0, 1.5), 2)
+                },
+                'low_1': {
+                    'time': f"{(14 + i) % 24}:00",
+                    'height': round(1.0 + random.uniform(0, 0.8), 2)
+                }
+            }
+        })
+    
+    return jsonify({
+        'success': True,
+        'forecasts': forecasts,
+        'mock': True  # Flag pour indiquer que ce sont des données mockées
+    })
+
+def get_tides_for_date(date_str):
+    """Récupérer les marées pour une date donnée"""
+    try:
+        import requests
+        from datetime import datetime
+        
+        # Coordonnées de Biarritz
+        latitude = 43.487
+        longitude = -1.560
+        
+        # API Tide API pour les marées
+        # On utilise une approximation simple basée sur l'heure
+        date = datetime.fromisoformat(date_str)
+        
+        # Pour l'instant, on va simuler des marées (haute et basse)
+        # Dans un vrai cas, on utiliserait une API de marées comme tides.mobilegeographics.com
+        
+        # Simulation simple : haute marée autour de 8h et 20h, basse marée autour de 14h et 2h
+        high_tide_1 = f"{(8 + (date.day % 4)) % 24}:00"
+        low_tide_1 = f"{(14 + (date.day % 4)) % 24}:00"
+        
+        return {
+            'high_1': {'time': high_tide_1, 'height': round(3.5 + (date.day % 5) * 0.2, 2)},
+            'low_1': {'time': low_tide_1, 'height': round(1.2 + (date.day % 5) * 0.1, 2)}
+        }
+    except Exception as e:
+        logger.error(f"Erreur marées: {e}")
+        return {
+            'high_1': {'time': 'N/A', 'height': 0},
+            'low_1': {'time': 'N/A', 'height': 0}
+        }
+
 @app.route('/wall-of-shame')
 def wall_of_shame():
     wall_entries = WallOfShame.query.order_by(WallOfShame.display_order, WallOfShame.created_at.desc()).all()
@@ -348,11 +607,44 @@ def leaderboard():
     leaders = Leaderboard.query.order_by(Leaderboard.rank_position, Leaderboard.visit_count.desc()).all()
     return render_template('leaderboard.html', leaders=leaders)
 
+def verify_hcaptcha(token):
+    """Vérifier le token hCaptcha"""
+    # En mode développement, si aucune clé n'est configurée, accepter toujours
+    if not app.config['HCAPTCHA_SECRET_KEY']:
+        logger.info("hCaptcha désactivé (mode développement)")
+        return True
+    
+    if not token:
+        logger.warning("Token hCaptcha manquant")
+        return False
+    
+    try:
+        import requests
+        response = requests.post(
+            'https://hcaptcha.com/siteverify',
+            data={
+                'secret': app.config['HCAPTCHA_SECRET_KEY'],
+                'response': token
+            },
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            success = result.get('success', False)
+            logger.info(f"Vérification hCaptcha: {'succès' if success else 'échec'}")
+            return success
+    except Exception as e:
+        logger.error(f"Erreur lors de la vérification hCaptcha: {e}")
+        return False
+    
+    return False
+
 @app.route('/reserver', methods=['GET', 'POST'])
 def reserver():
     if request.method == 'POST':
         try:
-            # Créer une nouvelle réservation
+            # Créer une nouvelle réservation en attente
             start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%d').date()
             end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d').date()
             
@@ -373,35 +665,45 @@ def reserver():
             if conflicting:
                 return jsonify({'success': False, 'message': f'Ces dates sont déjà réservées par {conflicting.guest_name} !'})
             
-            # Générer un token unique
-            token = secrets.token_urlsafe(32)
+            # Récupérer l'IP et le user agent pour la sécurité
+            ip_address = request.remote_addr
+            user_agent = request.headers.get('User-Agent', 'Unknown')
             
-            # Créer la réservation directement approuvée
-            reservation = Reservation(
+            # Créer la réservation en attente
+            pending_reservation = ReservationPending(
                 start_date=start_date,
                 end_date=end_date,
                 guest_name=request.form['guest_name'],
-                status='approved',
-                token=token
+                ip_address=ip_address,
+                user_agent=user_agent
             )
             
-            db.session.add(reservation)
+            db.session.add(pending_reservation)
             db.session.commit()
             
-            logger.info(f"Nouvelle réservation créée par {request.form['guest_name']}")
-            return jsonify({'success': True, 'message': 'Réservation confirmée ! Elle apparaît maintenant dans le calendrier.'})
+            logger.info(f"Nouvelle réservation en attente créée par {request.form['guest_name']} (IP: {ip_address})")
+            return jsonify({'success': True, 'message': 'Votre demande a bien été envoyée pour approbation.'})
                 
         except Exception as e:
             logger.error(f"Erreur lors de la réservation: {e}")
             return jsonify({'success': False, 'message': f'Erreur: {str(e)}'})
     
-    return render_template('reserver.html')
+    # Récupérer les paramètres pour pré-remplir le formulaire
+    prefilled_data = {
+        'guest_name': request.args.get('guest_name', ''),
+        'start_date': request.args.get('start_date', ''),
+        'end_date': request.args.get('end_date', '')
+    }
+    
+    return render_template('reserver.html', prefilled_data=prefilled_data)
 
 @app.route('/admin')
 @admin_required
 def admin():
     all_reservations = Reservation.query.order_by(Reservation.created_at.desc()).all()
-    return render_template('admin_dashboard.html', reservations=all_reservations)
+    # Compter les réservations en attente
+    pending_count = ReservationPending.query.filter_by(status='pending').count()
+    return render_template('admin_dashboard.html', reservations=all_reservations, pending_count=pending_count)
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -409,6 +711,7 @@ def admin_login():
         username = request.form['username']
         password = request.form['password']
         
+        # Vérification normale du mot de passe
         user = User.query.filter_by(username=username).first()
         
         if user and check_password_hash(user.password_hash, password) and user.is_admin:
@@ -665,29 +968,32 @@ def admin_upload_wall_entry():
         
         file = request.files['photo']
         if file and file.filename and allowed_file(file.filename):
-            # Générer un nom de fichier unique
+            # Générer un nom de fichier simple basé sur le nombre d'entrées
             filename = secure_filename(file.filename)
             name, ext = os.path.splitext(filename)
-            unique_filename = f"{uuid.uuid4().hex}{ext}"
+            
+            # Compter le nombre d'images existantes pour générer un nom unique
+            existing_count = WallOfShame.query.count()
+            simple_filename = f"img{existing_count + 1}{ext}"
             
             # Sauvegarder le fichier
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], simple_filename)
             file.save(file_path)
             
-            # Redimensionner l'image
+            # Redimensionner l'image à 800px de large
             resize_image(file_path)
             
             # Créer l'entrée en base de données
             wall_entry = WallOfShame(
                 person_name=person_name,
-                image_url=unique_filename,
-                display_order=WallOfShame.query.count()
+                image_url=simple_filename,
+                display_order=existing_count
             )
             
             db.session.add(wall_entry)
             db.session.commit()
             
-            logger.info(f"Entrée Wall of Shame ajoutée pour {person_name}")
+            logger.info(f"Entrée Wall of Shame ajoutée pour {person_name} avec l'image {simple_filename}")
             return jsonify({'success': True, 'message': f'Entrée ajoutée pour {person_name} !'})
         else:
             return jsonify({'success': False, 'message': 'Format de fichier non autorisé'})
@@ -849,6 +1155,128 @@ def admin_reject_reservation(reservation_id):
     flash(f'Réservation de {reservation.guest_name} rejetée.', 'info')
     return redirect(url_for('admin'))
 
+# === Routes pour les réservations en attente de validation ===
+
+@app.route('/admin/pending')
+@admin_required
+def admin_pending_reservations():
+    """Afficher toutes les réservations (en attente + validées)"""
+    # Réservations en attente de validation
+    pending = ReservationPending.query.order_by(ReservationPending.created_at.desc()).all()
+    # Réservations validées
+    approved = Reservation.query.filter_by(status='approved').order_by(Reservation.created_at.desc()).all()
+    return render_template('admin_pending.html', pending_reservations=pending, approved_reservations=approved)
+
+@app.route('/admin/pending/approve/<int:pending_id>', methods=['POST'])
+@admin_required
+def admin_approve_pending(pending_id):
+    """Valider une réservation en attente (statut -> Validée)"""
+    pending = ReservationPending.query.get_or_404(pending_id)
+    
+    try:
+        # Vérifier les conflits
+        conflicting = Reservation.query.filter(
+            Reservation.status == 'approved',
+            Reservation.start_date < pending.end_date,
+            Reservation.end_date > pending.start_date
+        ).first()
+        
+        if conflicting:
+            db.session.delete(pending)
+            db.session.commit()
+            flash(f'Conflit détecté ! Ces dates sont déjà réservées par {conflicting.guest_name}.', 'error')
+        else:
+            # Changer le statut en 'approved' (Validée)
+            pending.status = 'approved'
+            
+            # Créer la réservation dans la table principale
+            token = secrets.token_urlsafe(32)
+            reservation = Reservation(
+                start_date=pending.start_date,
+                end_date=pending.end_date,
+                guest_name=pending.guest_name,
+                status='approved',
+                token=token
+            )
+            db.session.add(reservation)
+            db.session.delete(pending)
+            db.session.commit()
+            flash(f'Réservation de {pending.guest_name} validée !', 'success')
+            logger.info(f"Réservation validée: {pending.guest_name}, {pending.start_date} - {pending.end_date}")
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erreur lors de l\'approbation: {str(e)}', 'error')
+        logger.error(f"Erreur lors de l'approbation: {e}")
+    
+    return redirect(url_for('admin_pending_reservations'))
+
+@app.route('/admin/pending/reject/<int:pending_id>', methods=['POST'])
+@admin_required
+def admin_reject_pending(pending_id):
+    """Rejeter une réservation en attente"""
+    pending = ReservationPending.query.get_or_404(pending_id)
+    guest_name = pending.guest_name
+    db.session.delete(pending)
+    db.session.commit()
+    flash(f'Réservation de {guest_name} rejetée et supprimée.', 'info')
+    logger.info(f"Réservation rejetée: {guest_name}")
+    return redirect(url_for('admin_pending_reservations'))
+
+@app.route('/admin/pending/delete-all', methods=['POST'])
+@admin_required
+def admin_delete_all_pending():
+    """Supprimer toutes les réservations en attente"""
+    try:
+        count = ReservationPending.query.delete()
+        db.session.commit()
+        flash(f'Toutes les réservations en attente ont été supprimées ({count}).', 'info')
+        logger.info(f"Suppression de toutes les réservations en attente: {count}")
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erreur lors de la suppression: {str(e)}', 'error')
+        logger.error(f"Erreur lors de la suppression de toutes les réservations: {e}")
+    
+    return redirect(url_for('admin_pending_reservations'))
+
+@app.route('/admin/pending/search', methods=['POST'])
+@admin_required
+def admin_search_pending():
+    """Rechercher des réservations en attente par nom"""
+    search_term = request.form.get('search_term', '').strip()
+    
+    if not search_term:
+        pending = ReservationPending.query.order_by(ReservationPending.created_at.desc()).all()
+    else:
+        pending = ReservationPending.query.filter(
+            (ReservationPending.guest_name.ilike(f'%{search_term}%')) |
+            (ReservationPending.nickname.ilike(f'%{search_term}%'))
+        ).order_by(ReservationPending.created_at.desc()).all()
+    
+    return render_template('admin_pending.html', pending_reservations=pending, search_term=search_term)
+
+@app.route('/admin/reservations/delete-range', methods=['POST'])
+@admin_required
+def admin_delete_reservations_range():
+    """Supprimer toutes les réservations entre deux dates"""
+    try:
+        start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%d').date()
+        end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d').date()
+        
+        count = Reservation.query.filter(
+            Reservation.start_date >= start_date,
+            Reservation.end_date <= end_date
+        ).delete()
+        
+        db.session.commit()
+        flash(f'Toutes les réservations entre {start_date} et {end_date} ont été supprimées ({count}).', 'info')
+        logger.info(f"Suppression de réservations entre {start_date} et {end_date}: {count}")
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erreur lors de la suppression: {str(e)}', 'error')
+        logger.error(f"Erreur lors de la suppression des réservations: {e}")
+    
+    return redirect(url_for('admin'))
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -887,15 +1315,42 @@ def logout():
     return redirect(url_for('index'))
 
 # API pour récupérer les réservations (pour le calendrier JavaScript)
+def update_expired_reservations():
+    """Passer les réservations passées en statut 'expired' (Passée)"""
+    today = date.today()
+    
+    # Marquer les réservations expirées
+    expired_count = ReservationPending.query.filter(
+        ReservationPending.end_date < today,
+        ReservationPending.status == 'pending'
+    ).update({'status': 'expired'})
+    
+    db.session.commit()
+    
+    if expired_count > 0:
+        logger.info(f"Marcqué {expired_count} réservation(s) comme expirée(s)")
+    
+    return expired_count
+
 @app.route('/api/reservations')
 def api_reservations():
-    reservations = Reservation.query.filter_by(status='approved').all()
-    return jsonify([{
+    """Récupérer UNIQUEMENT les réservations validées pour le calendrier"""
+    # Passer automatiquement les réservations expirées
+    update_expired_reservations()
+    
+    # Uniquement les réservations approuvées
+    approved = Reservation.query.filter_by(status='approved').all()
+    
+    result = [{
         'id': r.id,
         'start_date': r.start_date.isoformat(),
         'end_date': r.end_date.isoformat(),
-        'guest_name': r.guest_name
-    } for r in reservations])
+        'guest_name': r.guest_name,
+        'status': 'validated',
+        'type': 'approved'
+    } for r in approved]
+    
+    return jsonify(result)
 
 if __name__ == '__main__':
     # Configuration pour le développement
