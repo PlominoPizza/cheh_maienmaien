@@ -17,7 +17,7 @@
             <div class="leader-card {% if loop.index <= 3 %}top-{{ loop.index }}{% endif %}">
                 {% if leader.image_url %}
                 <div class="leader-photo">
-                    <img src="{{ url_for('static', filename='uploads/images/' + leader.image_url) }}" 
+                    <img src="{{ get_image_url(leader.image_url) }}" 
                          alt="{{ leader.person_name }}">
                 </div>
                 {% endif %}

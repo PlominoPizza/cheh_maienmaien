@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Grande Plage",
+    "location": "Biarritz",
+    "lat": 43.48505622591267,
+    "lng": -1.5574765227972476,
+    "distance_km": 2.5,
+    "temps_minutes": 5
+  },
+  {
+    "name": "Côte des Basques",
+    "location": "Biarritz",
+    "lat": 43.47564359716611,
+    "lng": -1.5664002921277527,
+    "distance_km": 2.1,
+    "temps_minutes": 5
+  },
+  {
+    "name": "Chambre d'Amour",
+    "location": "Anglet",
+    "lat": 43.49427252956886,
+    "lng": -1.5456154571455343,
+    "distance_km": 5.2,
+    "temps_minutes": 11
+  },
+  {
+    "name": "Uhabia",
+    "location": "Bidart",
+    "lat": 43.43108738144451,
+    "lng": -1.5989006378043706,
+    "distance_km": 7.9,
+    "temps_minutes": 11
+  },
+  {
+    "name": "Parlementia",
+    "location": "Guéthary",
+    "lat": 43.427723562362054,
+    "lng": -1.6068852440572812,
+    "distance_km": 8.7,
+    "temps_minutes": 13
+  },
+  {
+    "name": "Hendaye Plage",
+    "location": "Hendaye",
+    "lat": 43.3735961088257,
+    "lng": -1.7742203280832838,
+    "distance_km": 31.4,
+    "temps_minutes": 29
+  },
+  {
+    "name": "Santocha",
+    "location": "Capbreton",
+    "lat": 43.64702883230817,
+    "lng": -1.4426945771349413,
+    "distance_km": 37.3,
+    "temps_minutes": 33
+  },
+  {
+    "name": "La Gravière",
+    "location": "Hossegor",
+    "lat": 43.6737751398771,
+    "lng": -1.4391911691273902,
+    "distance_km": 40.1,
+    "temps_minutes": 37
+  },
+  {
+    "name": "Le Penon",
+    "location": "Seignosse",
+    "lat": 43.709888795671304,
+    "lng": -1.4339030135463402,
+    "distance_km": 46.2,
+    "temps_minutes": 44
+  },
+  {
+    "name": "Roca Puta",
+    "location": "Zumaia (Espagne)",
+    "lat": 43.30547054811386,
+    "lng": -2.240322543271815,
+    "distance_km": 72.8,
+    "temps_minutes": 53
+  }
+]

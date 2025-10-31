@@ -65,7 +65,7 @@
                     <div class="photo-number">{{ loop.index }}</div>
                 </div>
                 <div class="photo-image">
-                    <img src="{{ url_for('static', filename='uploads/images/' + photo.filename) }}" 
+                    <img src="{{ get_image_url(photo.filename) }}" 
                          alt="{{ photo.caption or 'Photo' }}">
                     <div class="photo-overlay">
                         <button onclick="deletePhoto({{ photo.id }})" class="btn btn-sm btn-danger" title="Supprimer">

@@ -1,964 +1,118 @@
 {% extends "base.html" %}
 
-{% block title %}Surf & Activités - Chez Mémé{% endblock %}
+{% block title %}Surf - Chez Mémé{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endblock %}
 
 {% block content %}
+<!-- 1. Chapeau "Surf" -->
 <section class="page-header">
     <div class="container">
-        <h1>🏄‍♂️ Surf & Activités</h1>
-        <p>Découvrez les conditions de surf et activités autour de Biarritz</p>
+        <h1>Surf</h1>
     </div>
 </section>
 
-<!-- Prévisions Surf - Grande Plage Biarritz -->
-<section class="surf-section">
+<section class="surf-spots-section">
     <div class="container">
+        <!-- 2. Carte avec entête "Spots à proximité" -->
         <div class="section-header">
-            <h2>🏄‍♂️ Prévisions Surf - Côte des Basques</h2>
-            <p>Conditions de surf pour les 12 prochains jours (spot le plus proche de chez Mémé)</p>
+            <h2>Spots à proximité</h2>
+        </div>
+        <div id="surf-map" style="height: 500px; width: 100%; margin-bottom: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+        
+        <!-- 3. Tableau des conditions à la Côte des Basques -->
+        <div class="surf-forecast-section">
+            <h2>Les condis sont elles top ?</h2>
+            <p class="intro-text">Le spot le plus proche de chez mémé c'est la Cote des Basques. Ca tombe bien, ça surf 1 max. Voici les prévisions des conditions pour les prochaines 48h :</p>
+            
+            <link href="//fr.surf-forecast.com/stylesheets/widget.css" media="screen" rel="stylesheet" type="text/css" />
+            <div class="wf-width-cont surf-fc-widget widget-centered">
+                <div class="widget-container">
+                    <div class="external-cont">
+                        <iframe class="surf-fc-i" allowtransparency="true" src="//fr.surf-forecast.com/breaks/Cotedes-Basques/forecasts/widget/m" scrolling="no" frameborder="0" marginwidth="0" marginheight="0"></iframe>
+                        <div class="footer">
+                            <a class="logo" href="//fr.surf-forecast.com/"><img src="//www.surf-forecast.com/images/widget.png" width="1" height="1" /></a>
+                            <div class="about" id="cmt">Plus <a href="//fr.surf-forecast.com/breaks/Cotedes-Basques">Conditions de surf détaillées et webcams pour&nbsp;Côte des Basques</a> <nobr>à&nbsp;<a href="//fr.surf-forecast.com/">surf-forecast.com</a></nobr>.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         
-        <div class="surf-forecast-container">
-            <!-- Carte OpenStreetMap avec tous les spots -->
-            <div class="map-section">
-                <h4 style="margin-bottom: 15px; text-align: center;">🗺️ Carte des spots de surf</h4>
-                <div id="all-spots-map" style="height: 600px; width: 100%; border-radius: 10px;"></div>
-            </div>
-            
-            <!-- Détails du spot -->
-            <div class="spot-details">
-                <div class="spot-header">
-                    <h3>📍 Côte des Basques, Biarritz</h3>
-                    <span class="spot-distance">Distance: 0.8 km à pied (10 min)</span>
-                </div>
-                <div class="spot-info">
-                    <div class="info-item">
-                        <i class="fas fa-wind"></i>
-                        <span>Niveau: Intermédiaire à Avancé</span>
+        <!-- 4. Liste des autres spots -->
+        <div class="spots-section">
+            <h2>Description des spots à proximité</h2>
+            <p class="spots-subtitle">(issues de Surf-Forecast, traduit à la zob par ChatGépéto)</p>
+            <div class="spots-list">
+                {% for spot in surf_spots %}
+                {% if spot.name != 'Côte des Basques' %}
+                <div class="spot-card">
+                    <div class="spot-header">
+                        <div>
+                            <h3>
+                                <a href="#surf-map" class="spot-name-link" 
+                                   data-lat="{{ spot.lat }}" 
+                                   data-lng="{{ spot.lng }}"
+                                   onclick="centerMapOnSpot({{ spot.lat }}, {{ spot.lng }}, {{ chez_meme.lat }}, {{ chez_meme.lng }}); return false;">
+                                    {{ spot.name }}{% if spot.name == 'Roca Puta' %} (les mecs l'ont ?){% endif %}
+                                </a>
+                            </h3>
+                            {% if spot.rating %}
+                            <div class="spot-rating">
+                                {% for i in range(5) %}
+                                    <span class="star {% if i < spot.rating %}filled{% endif %}">★</span>
+                                {% endfor %}
+                                <span class="rating-text">{{ spot.rating }}/5</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <span class="spot-location">{{ spot.location }}</span>
                     </div>
-                    <div class="info-item">
-                        <i class="fas fa-swimming-pool"></i>
-                        <span>Orienté: Sud-Ouest</span>
+                    {% if spot.description %}
+                    <div class="spot-description">
+                        <p>{{ spot.description }}</p>
                     </div>
-                    <div class="info-item">
-                        <i class="fas fa-user-friends"></i>
-                        <span>Popularité: Très Haute</span>
+                    {% endif %}
+                    <div class="spot-info-bottom">
+                        <div class="info-item">
+                            <i class="fas fa-route"></i>
+                            <span>{{ spot.distance_km }} km</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-clock"></i>
+                            <span>{{ spot.temps_minutes }} min</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-euro-sign"></i>
+                            <span>{{ spot.prix_round_trip }} € A/R</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Tableau de prévisions pour Côte des Basques -->
-            <div class="forecast-table-container">
-                <h3 style="margin-bottom: 20px;">📊 Prévisions Côte des Basques - 10 prochains jours</h3>
-                
-                <div class="forecast-loading" id="forecast-loading">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>Chargement des prévisions...</p>
-                </div>
-                
-                <div class="forecast-table-wrapper" id="forecast-table-wrapper" style="display: none;">
-                    <table class="forecast-table-surf-forecast">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th colspan="4" class="period-header">Matin<br><span>4h-12h</span></th>
-                                <th colspan="4" class="period-header">Après-midi<br><span>12h-20h</span></th>
-                                <th colspan="4" class="period-header">Nuit<br><span>20h-4h</span></th>
-                                <th class="tide-header">Marées</th>
-                            </tr>
-                            <tr class="sub-header">
-                                <th></th>
-                                <th>Hauteur de la houle</th>
-                                <th>Période</th>
-                                <th>Vent</th>
-                                <th>Indice (0-5)</th>
-                                <th>Hauteur de la houle</th>
-                                <th>Période</th>
-                                <th>Vent</th>
-                                <th>Indice (0-5)</th>
-                                <th>Hauteur de la houle</th>
-                                <th>Période</th>
-                                <th>Vent</th>
-                                <th>Indice (0-5)</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody id="forecast-tbody">
-                            <!-- Les données seront ajoutées ici par JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="forecast-cta" style="margin-top: 30px;">
-                    <a href="https://fr.surf-forecast.com/breaks/Cote-des-Basques/forecasts/latest/six_day" 
-                       target="_blank" 
-                       class="btn-forecast">
-                        <i class="fas fa-chart-line"></i>
-                        Voir les prévisions complètes sur Surf-Forecast.com
-                        <i class="fas fa-external-link-alt"></i>
-                    </a>
-                </div>
+                {% endif %}
+                {% endfor %}
             </div>
         </div>
     </div>
 </section>
-
-<!-- Autres spots de surf -->
-<section class="other-spots-section">
-    <div class="container">
-        <div class="section-header">
-            <h2>🌊 Autres spots de surf accessibles</h2>
-            <p>Explorez les meilleures plages autour de la collocation</p>
-        </div>
-        
-        <div class="spots-grid">
-            <!-- Spot 1: Grande Plage Biarritz -->
-            <div class="spot-card">
-                <div class="spot-card-header">
-                    <h3>🏖️ Grande Plage - Biarritz</h3>
-                    <span class="distance">1 km</span>
-                </div>
-                <div class="spot-card-body">
-                    <div class="spot-metric">
-                        <i class="fas fa-walking"></i>
-                        <div>
-                            <strong>À pied:</strong>
-                            <span>12 minutes</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-coins"></i>
-                        <div>
-                            <strong>Coût:</strong>
-                            <span>Gratuit</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-flag"></i>
-                        <div>
-                            <strong>Niveau:</strong>
-                            <span>Débutant à Avancé</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Spot 2: Anglet -->
-            <div class="spot-card">
-                <div class="spot-card-header">
-                    <h3>🌅 Anglet - Chambre d'Amour</h3>
-                    <span class="distance">3 km</span>
-                </div>
-                <div class="spot-card-body">
-                    <div class="spot-metric">
-                        <i class="fas fa-car"></i>
-                        <div>
-                            <strong>Temps de route:</strong>
-                            <span>10 minutes</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-coins"></i>
-                        <div>
-                            <strong>Coût (AR):</strong>
-                            <span>Gratuit</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-flag"></i>
-                        <div>
-                            <strong>Niveau:</strong>
-                            <span>Débutant +</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Spot 3: Bidart -->
-            <div class="spot-card">
-                <div class="spot-card-header">
-                    <h3>🏄 Bidart - Erretegia</h3>
-                    <span class="distance">8 km</span>
-                </div>
-                <div class="spot-card-body">
-                    <div class="spot-metric">
-                        <i class="fas fa-car"></i>
-                        <div>
-                            <strong>Temps de route:</strong>
-                            <span>15 minutes</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-coins"></i>
-                        <div>
-                            <strong>Coût (AR):</strong>
-                            <span>~2€ (péages)</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-flag"></i>
-                        <div>
-                            <strong>Niveau:</strong>
-                            <span>Tous niveaux</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Spot 5: Hendaye -->
-            <div class="spot-card">
-                <div class="spot-card-header">
-                    <h3>🏖️ Hendaye</h3>
-                    <span class="distance">18 km</span>
-                </div>
-                <div class="spot-card-body">
-                    <div class="spot-metric">
-                        <i class="fas fa-car"></i>
-                        <div>
-                            <strong>Temps de route:</strong>
-                            <span>20 minutes</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-coins"></i>
-                        <div>
-                            <strong>Coût (AR):</strong>
-                            <span>~3€ (péages)</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-flag"></i>
-                        <div>
-                            <strong>Niveau:</strong>
-                            <span>Tous niveaux</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Spot 4: Capbreton-Santocha -->
-            <div class="spot-card">
-                <div class="spot-card-header">
-                    <h3>🌊 Capbreton - Santocha</h3>
-                    <span class="distance">42 km</span>
-                </div>
-                <div class="spot-card-body">
-                    <div class="spot-metric">
-                        <i class="fas fa-car"></i>
-                        <div>
-                            <strong>Temps de route:</strong>
-                            <span>40 minutes</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-coins"></i>
-                        <div>
-                            <strong>Coût (AR):</strong>
-                            <span>~8€ (péages)</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-flag"></i>
-                        <div>
-                            <strong>Niveau:</strong>
-                            <span>Intermédiaire +</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Spot 5: Seignosse Estagnots -->
-            <div class="spot-card">
-                <div class="spot-card-header">
-                    <h3>🌊 Seignosse - Estagnots</h3>
-                    <span class="distance">45 km</span>
-                </div>
-                <div class="spot-card-body">
-                    <div class="spot-metric">
-                        <i class="fas fa-car"></i>
-                        <div>
-                            <strong>Temps de route:</strong>
-                            <span>42 minutes</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-coins"></i>
-                        <div>
-                            <strong>Coût (AR):</strong>
-                            <span>~8€ (péages)</span>
-                        </div>
-                    </div>
-                    <div class="spot-metric">
-                        <i class="fas fa-flag"></i>
-                        <div>
-                            <strong>Niveau:</strong>
-                            <span>Expert</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- Surf Trips à venir -->
-<section class="surf-trips-section">
-    <div class="container">
-        <div class="section-header">
-            <h2>✈️ Surf Trips prévus</h2>
-            <p>En prévision, on s'tient au jus ! 🏄‍♂️</p>
-        </div>
-        
-        <div class="trips-timeline">
-            <div class="trip-item">
-                <div class="trip-icon">🇲🇦</div>
-                <div class="trip-content">
-                    <h3>Maroc - Taghazout</h3>
-                    <p class="trip-period">T1 2026 (Janvier-Mars)</p>
-                    <p class="trip-description">
-                        Vagues chaudes et constantes, plage paradisiaque. 
-                        Meilleure période pour fuir l'hiver basque !
-                    </p>
-                    <div class="trip-details">
-                        <span><i class="fas fa-sun"></i> Température: 20-25°C</span>
-                        <span><i class="fas fa-water"></i> Vagues: 1.5-3m</span>
-                    </div>
-                </div>
-                <div class="trip-status">🚧 En préparation</div>
-            </div>
-            
-            <div class="trip-item">
-                <div class="trip-icon">🇵🇹</div>
-                <div class="trip-content">
-                    <h3>Portugal - Nazaré</h3>
-                    <p class="trip-period">T2 2026 (Avril-Juin)</p>
-                    <p class="trip-description">
-                        À la recherche des vagues monstres ! Spot de légende pour les gros tubes. 
-                        Surtout pour les expérimentés.
-                    </p>
-                    <div class="trip-details">
-                        <span><i class="fas fa-sun"></i> Température: 18-22°C</span>
-                        <span><i class="fas fa-water"></i> Vagues: 2-10m+</span>
-                    </div>
-                </div>
-                <div class="trip-status">🚧 En préparation</div>
-            </div>
-            
-            <div class="trip-item">
-                <div class="trip-icon">🇳🇮</div>
-                <div class="trip-content">
-                    <h3>Nicaragua - Popoyo</h3>
-                    <p class="trip-period">T3 2026 (Juillet-Septembre)</p>
-                    <p class="trip-description">
-                        Le spot de référence en Amérique Centrale ! 
-                        Vagues chaudes, breaks parfaits et surf camps.
-                    </p>
-                    <div class="trip-details">
-                        <span><i class="fas fa-sun"></i> Température: 28-32°C</span>
-                        <span><i class="fas fa-water"></i> Vagues: 2-4m</span>
-                    </div>
-                </div>
-                <div class="trip-status">🚧 En préparation</div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<style>
-.page-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 60px 0;
-    color: white;
-}
-
-.page-header h1 {
-    color: white;
-    margin-bottom: 10px;
-}
-
-.page-header p {
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.surf-section, .other-spots-section, .surf-trips-section {
-    padding: 40px 0;
-}
-
-.surf-section {
-    background: #f8f9fa;
-}
-
-.surf-trips-section {
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-}
-
-.section-header {
-    text-align: center;
-    margin-bottom: 40px;
-}
-
-.section-header h2 {
-    font-size: 2rem;
-    color: #333;
-    margin-bottom: 10px;
-}
-
-.section-header p {
-    color: #666;
-    font-size: 1.1rem;
-}
-
-.surf-forecast-container {
-    background: white;
-    border-radius: 15px;
-    padding: 30px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-}
-
-.map-section {
-    margin-bottom: 30px;
-}
-
-.spot-details {
-    background: #f8f9fa;
-    padding: 20px;
-    border-radius: 10px;
-    margin-bottom: 30px;
-}
-
-.spot-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.spot-header h3 {
-    margin: 0;
-    color: #333;
-}
-
-.spot-distance {
-    background: #667eea;
-    color: white;
-    padding: 5px 15px;
-    border-radius: 20px;
-    font-size: 0.9em;
-}
-
-.spot-info {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-
-.info-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #555;
-}
-
-.info-item i {
-    color: #667eea;
-}
-
-.forecast-wrapper {
-    text-align: center;
-}
-
-.forecast-note {
-    background: #e3f2fd;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    color: #555;
-}
-
-.forecast-note i {
-    color: #667eea;
-}
-
-.btn-forecast {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 15px 30px;
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 600;
-    transition: transform 0.3s ease;
-}
-
-.btn-forecast:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-}
-
-.spots-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 25px;
-}
-
-.spot-card {
-    background: white;
-    border-radius: 15px;
-    overflow: hidden;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease;
-}
-
-.spot-card.highlight-spot {
-    border: 3px solid #4caf50;
-    box-shadow: 0 8px 20px rgba(76, 175, 80, 0.3);
-    background: linear-gradient(135deg, #ffffff 0%, #f1f8f4 100%);
-}
-
-.spot-card:hover {
-    transform: translateY(-5px);
-}
-
-.spot-card.highlight-spot:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 12px 30px rgba(76, 175, 80, 0.4);
-}
-
-.spot-card-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.spot-card-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-}
-
-.distance {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 0.85em;
-}
-
-.spot-card-body {
-    padding: 20px;
-}
-
-.spot-metric {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 15px;
-}
-
-.spot-metric:last-child {
-    margin-bottom: 0;
-}
-
-.spot-metric i {
-    color: #667eea;
-    width: 20px;
-}
-
-.spot-metric strong {
-    display: block;
-    font-size: 0.9em;
-    color: #888;
-    margin-bottom: 2px;
-}
-
-.spot-metric span {
-    display: block;
-    color: #333;
-    font-weight: 600;
-}
-
-.trips-timeline {
-    max-width: 800px;
-    margin: 0 auto;
-}
-
-.trip-item {
-    background: white;
-    border-radius: 15px;
-    padding: 30px;
-    margin-bottom: 25px;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 25px;
-    align-items: center;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease;
-}
-
-.trip-item:hover {
-    transform: translateX(5px);
-}
-
-.trip-icon {
-    font-size: 3rem;
-    text-align: center;
-}
-
-.trip-content h3 {
-    margin: 0 0 5px 0;
-    color: #333;
-}
-
-.trip-period {
-    color: #667eea;
-    font-weight: 600;
-    margin-bottom: 10px;
-}
-
-.trip-description {
-    color: #666;
-    line-height: 1.6;
-    margin-bottom: 15px;
-}
-
-.trip-details {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-
-.trip-details span {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #555;
-    font-size: 0.9em;
-}
-
-.trip-details i {
-    color: #667eea;
-}
-
-.trip-status {
-    background: linear-gradient(135deg, #ffd89b 0%, #ff6e6e 100%);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 25px;
-    font-weight: 600;
-    font-size: 0.9em;
-    text-align: center;
-}
-
-@media (max-width: 768px) {
-    .spot-info {
-        flex-direction: column;
-        gap: 10px;
-    }
-    
-    .trip-item {
-        grid-template-columns: 1fr;
-        gap: 15px;
-    }
-    
-    .trip-status {
-        justify-self: start;
-    }
-}
-
-/* Styles pour le tableau de prévisions */
-.forecast-table-container {
-    margin-top: 40px;
-    padding: 30px;
-    background: #f8f9fa;
-    border-radius: 10px;
-}
-
-.forecast-loading {
-    text-align: center;
-    padding: 40px;
-    color: #667eea;
-}
-
-.forecast-loading i {
-    font-size: 3rem;
-    margin-bottom: 15px;
-}
-
-.forecast-table-wrapper {
-    overflow-x: auto;
-    margin: 20px 0;
-}
-
-.forecast-table-surf-forecast {
-    width: 100%;
-    border-collapse: collapse;
-    background: white;
-    border-radius: 8px;
-    overflow: hidden;
-    font-size: 0.95em;
-}
-
-.forecast-table-surf-forecast thead {
-    background: linear-gradient(135deg, #1a237e 0%, #3f51b5 100%);
-    color: white;
-}
-
-.forecast-table-surf-forecast thead th {
-    padding: 12px 8px;
-    text-align: center;
-    font-weight: 600;
-    border-right: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.forecast-table-surf-forecast thead th:last-child {
-    border-right: none;
-}
-
-.forecast-table-surf-forecast thead tr:first-child th {
-    font-size: 1rem;
-    padding: 15px 8px;
-}
-
-.forecast-table-surf-forecast thead .period-header {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.forecast-table-surf-forecast thead .period-header span {
-    font-size: 0.8em;
-    opacity: 0.9;
-    font-weight: 400;
-}
-
-.forecast-table-surf-forecast thead .tide-header {
-    background: rgba(255, 255, 255, 0.15);
-}
-
-.forecast-table-surf-forecast thead .sub-header {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.forecast-table-surf-forecast thead .sub-header th {
-    font-size: 0.75em;
-    padding: 8px 4px;
-}
-
-.forecast-table-surf-forecast thead .sub-header m,
-.forecast-table-surf-forecast thead .sub-header s,
-.forecast-table-surf-forecast thead .sub-header km/h {
-    display: block;
-    font-size: 0.7em;
-    opacity: 0.7;
-    margin-top: 2px;
-}
-
-.forecast-table-surf-forecast td {
-    padding: 12px 8px;
-    border-bottom: 1px solid #e3f2fd;
-    text-align: center;
-    vertical-align: middle;
-    border-right: 1px solid #f5f5f5;
-}
-
-.forecast-table-surf-forecast td:last-child {
-    border-right: none;
-}
-
-.forecast-table-surf-forecast tbody tr:hover {
-    background: linear-gradient(135deg, #e3f2fd 0%, #fff3e0 100%);
-}
-
-.forecast-table-surf-forecast tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.wind-cell {
-    font-size: 0.85em;
-    line-height: 1.6;
-}
-
-.wave-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 5px;
-    font-weight: 700;
-    font-size: 1em;
-}
-
-.wave-small { background: #c8e6c9; color: #2e7d32; }
-.wave-medium { background: #fff9c4; color: #d84315; }
-.wave-large { background: #ffccbc; color: #bf360c; }
-
-.direction-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-weight: 600;
-    color: #555;
-    font-size: 0.85em;
-}
-
-.unit {
-    display: inline-block;
-    font-size: 0.75em;
-    opacity: 0.7;
-    margin-left: 2px;
-}
-
-.period-score {
-    display: inline-block;
-    width: 35px;
-    height: 35px;
-    border-radius: 50%;
-    line-height: 35px;
-    text-align: center;
-    font-weight: 700;
-    font-size: 1.1em;
-}
-
-.score-good { background: #4caf50; color: white; }
-.score-fair { background: #ff9800; color: white; }
-.score-poor { background: #f44336; color: white; }
-
-.forecast-date {
-    font-weight: 700;
-    color: #333;
-    font-size: 0.95em;
-}
-
-.forecast-day {
-    color: #666;
-    font-size: 0.85em;
-}
-
-.date-cell {
-    text-align: left !important;
-    padding-left: 15px !important;
-}
-
-.tides-display {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    font-size: 0.85em;
-}
-
-.tide-high, .tide-low {
-    line-height: 1.4;
-}
-
-.tide-high {
-    color: #667eea;
-    font-weight: 600;
-}
-
-.tide-high span, .tide-low span {
-    font-size: 0.9em;
-    opacity: 0.8;
-}
-
-.tide-low {
-    color: #888;
-}
-
-.tides-cell {
-    text-align: left !important;
-    padding-left: 10px !important;
-}
-
-/* Styles pour les marqueurs de la carte */
-.chez-meme-marker {
-    background: transparent !important;
-    border: none !important;
-}
-
-.surf-spot-marker {
-    background: transparent !important;
-    border: none !important;
-}
-
-.forecast-container {
-    margin-top: 30px;
-}
-
-.forecast-iframe-wrapper {
-    margin-bottom: 20px;
-}
-
-.forecast-note {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #666;
-    font-size: 0.9em;
-}
-
-@media (max-width: 1024px) {
-    .forecast-table-surf-forecast {
-        font-size: 0.85em;
-    }
-    
-    .forecast-table-surf-forecast thead th {
-        padding: 10px 6px;
-        font-size: 0.85rem;
-    }
-    
-    .forecast-table-surf-forecast thead .sub-header th {
-        font-size: 0.65em;
-        padding: 6px 3px;
-    }
-    
-    .forecast-table-surf-forecast td {
-        padding: 10px 6px;
-    }
-    
-    .wave-badge {
-        font-size: 0.9em;
-        padding: 3px 8px;
-    }
-}
-
-@media (max-width: 768px) {
-    .forecast-table-surf-forecast {
-        font-size: 0.7em;
-    }
-    
-    .forecast-table-surf-forecast thead th {
-        padding: 8px 4px;
-        font-size: 0.7rem;
-    }
-    
-    .forecast-table-surf-forecast td {
-        padding: 8px 4px;
-    }
-    
-    .wave-badge {
-        font-size: 0.8em;
-        padding: 2px 6px;
-    }
-    
-    .forecast-table-surf-forecast thead .sub-header th {
-        font-size: 0.6em;
-    }
-}
-</style>
-
 {% endblock %}
 
 {% block scripts %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
-// Initialiser la carte avec tous les spots
-document.addEventListener('DOMContentLoaded', function() {
-    const map = L.map('all-spots-map').setView([43.48, -1.55], 10);
+// Variable globale pour la carte et les marqueurs
+let map;
+let spotMarkers = {};
+let surfSpotsData;
+
+// Initialisation de la carte OpenStreetMap
+document.addEventListener('DOMContentLoaded', () => {
+    // Coordonnées de chez mémé
+    const chezMeme = {{ chez_meme | tojson }};
+    
+    // Initialiser la carte centrée sur Biarritz
+    map = L.map('surf-map').setView([chezMeme.lat, chezMeme.lng], 11);
     
     // Ajouter la couche OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -966,164 +120,241 @@ document.addEventListener('DOMContentLoaded', function() {
         maxZoom: 19
     }).addTo(map);
     
-    // Chez Mémé (7 av du Lac Marion) - Coordonnées EXACTES
+    // Créer une icône personnalisée pour Chez Mémé (rouge pour le distinguer)
     const chezMemeIcon = L.divIcon({
         className: 'chez-meme-marker',
-        html: '<div style="background: #e91e63; color: white; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-weight: bold;">🏠</div>',
-        iconSize: [35, 35],
-        iconAnchor: [17, 17]
+        html: '<div style="background-color: #ef4444; width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"><div style="transform: rotate(45deg); color: white; font-size: 18px; line-height: 24px; text-align: center;">🏠</div></div>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 30],
+        popupAnchor: [0, -30]
     });
     
-    const chezMemeMarker = L.marker([43.469837, -1.550370], {icon: chezMemeIcon}).addTo(map);
-    chezMemeMarker.bindPopup('🏠 <strong>Chez Mémé</strong><br>7 Avenue du Lac Marion<br>64200 Biarritz', {maxWidth: 200});
+    // Ajouter le marqueur de chez mémé avec l'icône personnalisée
+    const chezMemeMarker = L.marker([chezMeme.lat, chezMeme.lng], { icon: chezMemeIcon }).addTo(map);
+    chezMemeMarker.bindPopup('<b>🍵 Chez Mémé</b><br>7 avenue du Lac Marion<br>64200 Biarritz');
     
-    // Tous les spots de surf avec leurs coordonnées GPS EXACTES
-    const spots = [
-        {name: 'Côte des Basques - Biarritz', coords: [43.475206303831754, -1.5686086721152588], distance: '0.8 km', icon: '🌊', color: '#ff6f00'},
-        {name: 'Grande Plage - Biarritz', coords: [43.48466, -1.55897], distance: '1 km', icon: '🏖️', color: '#4caf50'},
-        {name: 'Anglet - Chambre d\'Amour', coords: [43.49702538628699, -1.5453720334478631], distance: '3 km', icon: '🌅', color: '#2196f3'},
-        {name: 'Bidart - Erretegia', coords: [43.44601831123814, -1.5898158440142072], distance: '8 km', icon: '🏄', color: '#2196f3'},
-        {name: 'Hendaye', coords: [43.37338790862096, -1.7743336267295802], distance: '18 km', icon: '🏖️', color: '#2196f3'},
-        {name: 'Capbreton - Santocha', coords: [43.647072517197884, -1.4452431890293216], distance: '42 km', icon: '🌊', color: '#2196f3'},
-        {name: 'Seignosse - Estagnots', coords: [43.687254335826125, -1.4407989452006489], distance: '45 km', icon: '🌊', color: '#2196f3'}
-    ];
-    
-    // Ajouter chaque spot sur la carte
-    spots.forEach(spot => {
-        const customIcon = L.divIcon({
-            className: 'surf-spot-marker',
-            html: `<div style="background: ${spot.color}; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">${spot.icon}</div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
-        });
-        
-        const marker = L.marker(spot.coords, {icon: customIcon}).addTo(map);
-        marker.bindPopup(`${spot.icon} <strong>${spot.name}</strong><br>📍 ${spot.distance}`);
+    // Ajouter les marqueurs pour chaque spot (icône bleue par défaut)
+    surfSpotsData = {{ surf_spots | tojson }};
+    surfSpotsData.forEach(spot => {
+        const spotMarker = L.marker([spot.lat, spot.lng]).addTo(map);
+        spotMarker.bindPopup(`<b>${spot.name}</b><br>${spot.location}<br>${spot.distance_km} km de chez mémé`);
+        spotMarkers[spot.name] = spotMarker;
     });
-    
-    // Ajuster la vue pour voir tous les marqueurs
-    const group = new L.featureGroup([
-        chezMemeMarker,
-        ...spots.map((spot, i) => L.marker(spot.coords))
-    ]);
-    map.fitBounds(group.getBounds().pad(0.2));
-    
-    // Charger les prévisions
-    loadSurfForecast();
 });
 
-// Fonction pour charger les prévisions de surf
-async function loadSurfForecast() {
-    try {
-        const response = await fetch('/api/surf-forecast');
-        const data = await response.json();
-        
-        if (data.success && data.forecasts) {
-            displayForecast(data.forecasts);
-        } else {
-            showForecastError();
-        }
-    } catch (error) {
-        console.error('Erreur lors du chargement des prévisions:', error);
-        showForecastError();
-    }
-}
-
-// Fonction pour afficher les prévisions dans le tableau
-function displayForecast(forecasts) {
-    const tbody = document.getElementById('forecast-tbody');
-    const loading = document.getElementById('forecast-loading');
-    const wrapper = document.getElementById('forecast-table-wrapper');
+// Fonction pour centrer la carte sur un spot tout en gardant Chez Mémé visible
+function centerMapOnSpot(spotLat, spotLng, chezMemeLat, chezMemeLng) {
+    if (!map) return;
     
-    tbody.innerHTML = '';
+    // Calculer la zone de vue pour inclure les deux points
+    const bounds = L.latLngBounds(
+        [[Math.min(spotLat, chezMemeLat), Math.min(spotLng, chezMemeLng)],
+         [Math.max(spotLat, chezMemeLat), Math.max(spotLng, chezMemeLng)]]
+    );
     
-    forecasts.forEach(forecast => {
-        const row = document.createElement('tr');
-        
-        // Formater la date
-        const date = new Date(forecast.date);
-        const formattedDate = date.toLocaleDateString('fr-FR', { 
-            day: '2-digit', 
-            month: '2-digit', 
-            year: 'numeric' 
-        });
-        const dayName = date.toLocaleDateString('fr-FR', { weekday: 'short' });
-        
-        // Fonction helper pour afficher une période avec indice de qualité
-        const renderPeriod = (periodData, dateStr) => {
-            const waveClass = periodData.wave_height >= 2.5 ? 'wave-large' : 
-                            periodData.wave_height >= 1.5 ? 'wave-medium' : 'wave-small';
-            const windDir = getWindDirection(periodData.wind_direction);
-            
-            // Calculer un indice de qualité de 0 à 5
-            let qualityIndex = 0;
-            
-            // Points pour la hauteur de vague (idéale entre 1.5 et 2.5m)
-            if (periodData.wave_height >= 1.5 && periodData.wave_height <= 2.5) qualityIndex += 2;
-            else if (periodData.wave_height >= 1.0 && periodData.wave_height < 1.5) qualityIndex += 1;
-            else if (periodData.wave_height > 2.5 && periodData.wave_height <= 3.5) qualityIndex += 1;
-            
-            // Points pour la période (idéale >= 12s)
-            if (periodData.wave_period >= 12) qualityIndex += 2;
-            else if (periodData.wave_period >= 9) qualityIndex += 1;
-            
-            // Points pour le vent (idéal <= 15 km/h)
-            if (periodData.wind_speed <= 10) qualityIndex += 1;
-            else if (periodData.wind_speed > 25) qualityIndex -= 1;
-            
-            qualityIndex = Math.max(0, Math.min(5, qualityIndex)); // Entre 0 et 5
-            
-            const scoreClass = qualityIndex >= 4 ? 'score-good' : qualityIndex >= 2 ? 'score-fair' : 'score-poor';
-            
-            return `
-                <td><span class="wave-badge ${waveClass}">${periodData.wave_height}<span class="unit">m</span></span></td>
-                <td>${periodData.wave_period}<span class="unit">s</span></td>
-                <td>${periodData.wind_speed}<span class="unit">km/h</span><br><span class="direction-badge"><i class="fas fa-arrow-up" style="transform: rotate(${periodData.wind_direction + 90}deg);"></i></span></td>
-                <td><span class="period-score ${scoreClass}">${qualityIndex}</span></td>
-            `;
-        };
-        
-        // Marées
-        const tides = forecast.tides || { high_1: { time: 'N/A', height: 0 }, low_1: { time: 'N/A', height: 0 } };
-        const tidesHtml = `
-            <div class="tides-display">
-                <div class="tide-high">📈 ${tides.high_1.time}<br><span>${tides.high_1.height}m</span></div>
-                <div class="tide-low">📉 ${tides.low_1.time}<br><span>${tides.low_1.height}m</span></div>
-            </div>
-        `;
-        
-        row.innerHTML = `
-            <td class="date-cell">
-                <div class="forecast-day">${dayName}</div>
-                <div class="forecast-date">${formattedDate}</div>
-            </td>
-            ${renderPeriod(forecast.periods.morning, forecast.date)}
-            ${renderPeriod(forecast.periods.afternoon, forecast.date)}
-            ${renderPeriod(forecast.periods.night, forecast.date)}
-            <td class="tides-cell">${tidesHtml}</td>
-        `;
-        
-        tbody.appendChild(row);
+    // Centrer et ajuster le zoom pour voir les deux points
+    map.fitBounds(bounds, {
+        padding: [50, 50],
+        maxZoom: 13,
+        animate: true,
+        duration: 0.5
     });
     
-    loading.style.display = 'none';
-    wrapper.style.display = 'block';
-}
-
-function getWindDirection(degrees) {
-    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-    return directions[Math.round(degrees / 22.5) % 16];
-}
-
-function showForecastError() {
-    const loading = document.getElementById('forecast-loading');
-    loading.innerHTML = `
-        <i class="fas fa-exclamation-triangle" style="color: #f57c00;"></i>
-        <p>Impossible de charger les prévisions</p>
-        <p style="font-size: 0.9em; color: #666;">Consultez <a href="https://fr.surf-forecast.com/breaks/Grande-Plage/forecasts/latest/six_day" target="_blank">Surf-Forecast.com</a> pour les données complètes</p>
-    `;
+    // Ouvrir le popup du spot si le marqueur existe
+    if (surfSpotsData) {
+        surfSpotsData.forEach(spot => {
+            if (Math.abs(spot.lat - spotLat) < 0.0001 && Math.abs(spot.lng - spotLng) < 0.0001) {
+                const marker = spotMarkers[spot.name];
+                if (marker) {
+                    setTimeout(() => {
+                        marker.openPopup();
+                    }, 600); // Attendre la fin de l'animation
+                }
+            }
+        });
+    }
+    
+    // Scroll fluide vers la carte
+    document.getElementById('surf-map').scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+    });
 }
 </script>
+<style>
+.surf-spots-section {
+    padding: 60px 0;
+}
 
-<script src="{{ url_for('static', filename='js/activities.js') }}"></script>
+.section-header {
+    margin-bottom: 30px;
+}
+
+.section-header h2 {
+    font-size: 2rem;
+    color: #1a1a1a;
+}
+
+.surf-forecast-section {
+    margin: 60px 0;
+    padding: 40px 0;
+}
+
+.surf-forecast-section h2 {
+    font-size: 2rem;
+    margin-bottom: 20px;
+    color: #1a1a1a;
+}
+
+.intro-text {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: #555;
+    margin-bottom: 30px;
+    max-width: 800px;
+}
+
+.spots-section {
+    margin-top: 60px;
+}
+
+.spots-section h2 {
+    font-size: 2rem;
+    color: #1a1a1a;
+    margin-bottom: 10px;
+}
+
+.spots-subtitle {
+    font-size: 0.9rem;
+    color: #888;
+    font-style: italic;
+    margin-bottom: 30px;
+}
+
+.spots-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.spot-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 400px;
+}
+
+.spot-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.spot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.spot-header h3 {
+    font-size: 1.3rem;
+    color: #1a1a1a;
+    margin: 0 0 8px 0;
+}
+
+.spot-name-link {
+    color: #1a1a1a;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.spot-name-link:hover {
+    color: #6366f1;
+    text-decoration: underline;
+}
+
+.spot-rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 5px;
+}
+
+.spot-rating .star {
+    color: #ddd;
+    font-size: 1rem;
+    transition: color 0.2s;
+}
+
+.spot-rating .star.filled {
+    color: #fbbf24;
+}
+
+.rating-text {
+    margin-left: 6px;
+    font-size: 0.85rem;
+    color: #666;
+    font-weight: 500;
+}
+
+.spot-location {
+    background: #6366f1;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.spot-description {
+    margin: 15px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #6366f1;
+    flex-grow: 1;
+}
+
+.spot-description p {
+    margin: 0;
+    color: #555;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.spot-info-bottom {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    margin-top: auto;
+    padding-top: 15px;
+    border-top: 2px solid #f0f0f0;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+    font-size: 0.95rem;
+}
+
+.info-item i {
+    color: #6366f1;
+}
+
+#surf-map {
+    z-index: 1;
+}
+</style>
 {% endblock %}

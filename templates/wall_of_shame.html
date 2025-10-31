@@ -21,7 +21,7 @@
             {% for entry in wall_entries %}
             <div class="wall-card">
                 {% if entry.image_url %}
-                <img src="{{ url_for('static', filename='uploads/images/' + entry.image_url) }}" 
+                <img src="{{ get_image_url(entry.image_url) }}" 
                      alt="{{ entry.person_name }}"
                      class="wall-image"
                      loading="lazy"

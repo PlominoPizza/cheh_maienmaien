@@ -10,8 +10,20 @@ from PIL import Image
 import uuid
 import logging
 
-# Configuration du logging
-logging.basicConfig(level=logging.INFO)
+# Configuration du logging - AFFICHAGE COMPLET DANS LE TERMINAL
+logging.basicConfig(
+    level=logging.DEBUG,  # Affiche tous les niveaux (DEBUG, INFO, WARNING, ERROR)
+    format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler()  # Affiche dans la console/terminal
+    ]
+)
+
+# Réduire le bruit des dépendances
+logging.getLogger('werkzeug').setLevel(logging.INFO)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 # Charger les variables d'environnement depuis .env
@@ -146,6 +158,10 @@ class Leaderboard(db.Model):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def get_image_url(image_filename):
+    """Retourne toujours le chemin local de l'image uploadée."""
+    return f"/static/uploads/images/{image_filename}"
+
 def resize_image(image_path, fixed_width=800):
     """Redimensionne une image à une largeur fixe de 800px en gardant les proportions"""
     try:
@@ -203,10 +219,35 @@ def add_security_headers(response):
     if '/wall-of-shame' in request.path:
         response.headers['X-Robots-Tag'] = 'noindex, nofollow, noimageindex, noarchive, nosnippet'
     
-    # Pour toutes les images uploadées
+    # Pour toutes les images uploadées (local ou Cloudinary)
     if '/static/uploads/images/' in request.path:
         response.headers['X-Robots-Tag'] = 'noindex, nofollow, noimageindex'
     
+    # Pour les pages contenant des images
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+    
+    return response
+
+@app.before_request
+def log_request_info():
+    """Logger toutes les requêtes HTTP pour le debugging"""
+    # Ne pas logger les requêtes pour les fichiers statiques
+    if not request.path.startswith('/static') and not request.path.startswith('/favicon.ico'):
+        logger.info(f"[REQUETE] {request.method} {request.path}")
+        
+        # Logger les données POST pour les formulaires
+        if request.method == 'POST' and request.form:
+            # Masquer les mots de passe pour la sécurité
+            form_data = {k: '***' if 'password' in k.lower() else v 
+                        for k, v in request.form.items()}
+            logger.debug(f"Form data: {form_data}")
+
+@app.after_request
+def log_response_info(response):
+    """Logger toutes les réponses HTTP"""
+    if not request.path.startswith('/static') and not request.path.startswith('/favicon.ico'):
+        logger.info(f"[REPONSE] {response.status_code} pour {request.method} {request.path}")
     return response
 
 @app.before_request
@@ -358,7 +399,7 @@ def robots_txt():
 @app.route('/')
 def index():
     photos = Photo.query.order_by(Photo.display_order, Photo.created_at).all()
-    return render_template('index.html', photos=photos)
+    return render_template('index.html', photos=photos, get_image_url=get_image_url)
 
 @app.route('/calendrier')
 def calendrier():
@@ -383,8 +424,135 @@ def appartement():
 
 @app.route('/activites')
 def activites():
-    activities = Activity.query.all()
-    return render_template('activites.html', activities=activities)
+    # Coordonnées de chez mémé : 7 avenue du Lac Marion, 64200 Biarritz
+    chez_meme_coords = {'lat': 43.47007441987446, 'lng': -1.5502231105144162}
+    
+    # Données des spots de surf à proximité (ordre de proximité)
+    # Descriptions officielles depuis Surf Forecast : https://fr.surf-forecast.com/
+    # Calcul des coûts (prix_round_trip) pour l'aller-retour depuis 7 avenue du Lac Marion, 64200 Biarritz
+    # Hypothèses : Renault Clio IV (6.5 L/100km), essence 1.75€/L
+    # Formule carburant : (distance_km * 2 / 100) * 6.5 * 1.75
+    # Péages A63 (classe 1) - Référence : https://public-content.vinci-autoroutes.com/PDF/Tarifs-peage-asf/C1-TARIFS-WEB-2025-maille.pdf
+    # Chez mémé : sortie 4 Biarritz (demi-échangeur sud) -> 1,2€/passage
+    # Hendaye : péage n°2 (St Jean de Luz Sud) -> 1,9€/passage = 3,8€ A/R
+    # Capbreton/Hossegor/Seignosse : péage n°8 (Capbreton) -> 2€/passage = 4€ A/R
+    # Distances calculées via l'API OSRM (Open Source Routing Machine) - distances routières réelles
+    # Point de départ : 7 avenue du Lac Marion, 64200 Biarritz (43.47007441987446, -1.5502231105144162)
+    # Coordonnées GPS mises à jour selon les points d'arrivée fournis
+    surf_spots = [
+        {
+            'name': 'Côte des Basques',
+            'location': 'Biarritz',
+            'lat': 43.47564359716611,
+            'lng': -1.5664002921277527,
+            'distance_km': 2.1,  # Distance calculée via OSRM
+            'temps_minutes': 5,
+            'prix_round_trip': 0.48,  # Pas de péage : (2.1*2/100)*6.5*1.75 = 0.48€
+            'rating': 4,
+            'description': 'Côte des Basques dans la Côte Basque est un spot de plage et de récif exposé qui offre un surf assez régulier et peut fonctionner à tout moment de l\'année. Fonctionne mieux avec des vents offshore de l\'est avec un certain abri ici des vents du nord-ouest. Houles de vent et de fond en parts égales et l\'angle idéal de houle est de l\'ouest. Le spot de plage offre à la fois des vagues gauches et droites. Meilleur autour de la marée basse. Quand le surf est bon, la foule est probable. Attention aux rochers dans le lineup.'
+        },
+        {
+            'name': 'Grande Plage',
+            'location': 'Biarritz',
+            'lat': 43.48505622591267,
+            'lng': -1.5574765227972476,
+            'distance_km': 2.5,  # Distance calculée via OSRM
+            'temps_minutes': 5,
+            'prix_round_trip': 0.57,  # Pas de péage : (2.5*2/100)*6.5*1.75 = 0.57€
+            'rating': 3,
+            'description': 'Grande Plage dans la Côte Basque est un spot de plage exposé qui offre un surf assez régulier et peut fonctionner à tout moment de l\'année. Les vents offshore soufflent de l\'est avec un certain abri ici des vents du sud. Houles de vent et de fond en parts égales et la meilleure direction de houle est de l\'ouest. Le spot de plage offre à la fois des vagues gauches et droites. Susceptible d\'être bondé si ça fonctionne. Les dangers incluent la foule et la pollution.'
+        },
+        {
+            'name': 'Chambre d\'Amour',
+            'location': 'Anglet',
+            'lat': 43.49427252956886,
+            'lng': -1.5456154571455343,
+            'distance_km': 5.2,  # Distance calculée via OSRM
+            'temps_minutes': 11,
+            'prix_round_trip': 1.18,  # Pas de péage : (5.2*2/100)*6.5*1.75 = 1.18€
+            'rating': 3,
+            'description': 'Anglet - Chambre d\'Amour dans la Côte Basque est un spot de plage exposé qui offre un surf assez régulier et peut fonctionner à tout moment de l\'année. La meilleure direction de vent est du sud-est. Tendance à recevoir un mélange de houles de fond et de vent et l\'angle idéal de houle est du nord-ouest. Le spot de plage offre à la fois des vagues gauches et droites. Surfeable à tous les stades de la marée. C\'est souvent bondé ici. Les dangers incluent les dangers créés par l\'homme (bouées etc.) et le localisme.'
+        },
+        {
+            'name': 'Uhabia',
+            'location': 'Bidart',
+            'lat': 43.43108738144451,
+            'lng': -1.5989006378043706,
+            'distance_km': 7.9,  # Distance calculée via OSRM
+            'temps_minutes': 11,
+            'prix_round_trip': 1.80,  # Pas de péage : (7.9*2/100)*6.5*1.75 = 1.80€
+            'rating': 3,
+            'description': 'Bidart dans la Côte Basque est un spot de plage exposé qui offre un surf assez fiable et peut fonctionner à tout moment de l\'année. La meilleure direction de vent est du sud-est. Tendance à recevoir un mélange de houles de fond et de vent et la meilleure direction de houle est de l\'ouest. Le spot de plage offre des vagues gauches et droites. Bon surf à tous les stades de la marée. Parfois bondé. Attention aux courants, rochers et pollution.'
+        },
+        {
+            'name': 'Parlementia',
+            'location': 'Guéthary',
+            'lat': 43.427723562362054,
+            'lng': -1.6068852440572812,
+            'distance_km': 8.7,  # Distance calculée via OSRM
+            'temps_minutes': 13,
+            'prix_round_trip': 1.98,  # Pas de péage : (8.7*2/100)*6.5*1.75 = 1.98€
+            'rating': 3,
+            'description': 'Parlementia dans la Côte Basque est un spot de récif exposé qui offre un surf fiable et peut fonctionner à tout moment de l\'année. La meilleure direction de vent est de l\'est-sud-est. Houles de vent et de fond en parts égales et la meilleure direction de houle est de l\'ouest. Il n\'y a pas de spot de plage, seulement un récif droite. La qualité du surf n\'est pas affectée par la marée. Quand ça fonctionne ici, ça peut être bondé. Attention aux rochers.'
+        },
+        {
+            'name': 'Hendaye Plage',
+            'location': 'Hendaye',
+            'lat': 43.3735961088257,
+            'lng': -1.7742203280832838,
+            'distance_km': 31.4,  # Distance calculée via OSRM
+            'temps_minutes': 29,
+            'prix_round_trip': 10.94,  # Carburant : (31.4*2/100)*6.5*1.75 = 7.14€ + Péage A63 péage 2 (3.8€ A/R) = 10.94€
+            'rating': 3,
+            'description': 'Hendaye Plage dans la Côte Basque est un spot de plage et de récif assez exposé qui offre un surf assez régulier et peut fonctionner à tout moment de l\'année. Les vents offshore viennent du sud avec un certain abri ici des vents d\'ouest. La plupart du surf ici provient de houles de fond et la direction idéale de houle est de l\'ouest-nord-ouest. Le spot de plage offre des vagues gauches et droites et il y a aussi un récif droite. La qualité du surf n\'est pas affectée par la marée. Susceptible d\'être bondé si ça fonctionne. Attention aux rochers.'
+        },
+        {
+            'name': 'Santocha',
+            'location': 'Capbreton',
+            'lat': 43.64702883230817,
+            'lng': -1.4426945771349413,
+            'distance_km': 37.3,  # Distance calculée via OSRM
+            'temps_minutes': 33,
+            'prix_round_trip': 12.48,  # Carburant : (37.3*2/100)*6.5*1.75 = 8.48€ + Péage A63 péage 8 (4€ A/R) = 12.48€
+            'rating': 3,
+            'description': 'Capbreton - Le Santocha dans les Landes est un spot de plage assez exposé qui offre un surf assez régulier et peut fonctionner à tout moment de l\'année. La meilleure direction de vent est de l\'est. Houles de vent et de fond en parts égales et la meilleure direction de houle est de l\'ouest. Le spot de plage offre des vagues gauches et droites. Même quand il y a des vagues, il n\'est probablement pas bondé. Attention au localisme.'
+        },
+        {
+            'name': 'La Gravière',
+            'location': 'Hossegor',
+            'lat': 43.6737751398771,
+            'lng': -1.4391911691273902,
+            'distance_km': 40.1,  # Distance calculée via OSRM
+            'temps_minutes': 37,
+            'prix_round_trip': 13.11,  # Carburant : (40.1*2/100)*6.5*1.75 = 9.11€ + Péage A63 péage 8 (4€ A/R) = 13.11€
+            'rating': 4,
+            'description': 'Hossegor - La Gravière dans les Landes est un spot de barre de sable exposé qui offre un surf assez régulier. La meilleure période de l\'année pour les vagues est l\'automne. Les vents offshore soufflent de l\'est. Tendance à recevoir un mélange de houles de fond et de vent et la direction idéale de houle est de l\'ouest. Le spot de barre de sable offre à la fois des vagues gauches et droites. C\'est parfois bondé ici. Prenez des précautions particulières ici si ça devient très bondé.'
+        },
+        {
+            'name': 'Le Penon',
+            'location': 'Seignosse',
+            'lat': 43.709888795671304,
+            'lng': -1.4339030135463402,
+            'distance_km': 46.2,  # Distance calculée via OSRM
+            'temps_minutes': 44,
+            'prix_round_trip': 14.51,  # Carburant : (46.2*2/100)*6.5*1.75 = 10.51€ + Péage A63 péage 8 (4€ A/R) = 14.51€
+            'rating': 3,
+            'description': 'Le Penon en Aquitaine est un spot de plage/jetée exposé qui offre un surf irrégulier sans modèle saisonnier particulier. La meilleure direction de vent est de l\'est. Houles de vent et de fond en parts égales et l\'angle idéal de houle est de l\'ouest. Le spot de plage offre des vagues gauches et droites. Bon surf à tous les stades de la marée. Quand le surf est bon, ça peut devenir assez chargé dans l\'eau. Attention aux courants dangereux.'
+        },
+        {
+            'name': 'Roca Puta',
+            'location': 'Zumaia (Espagne)',
+            'lat': 43.30547054811386,
+            'lng': -2.240322543271815,
+            'distance_km': 72.8,  # Distance calculée via OSRM
+            'temps_minutes': 53,
+            'prix_round_trip': 20.36,  # Carburant : (72.8*2/100)*6.5*1.75 = 16.56€ + Péage A63 péage 2 (3.8€ A/R) = 20.36€ (péage Espagne non inclus - frontière libre)
+            'rating': 4,
+            'description': 'Roca Puta dans le Pays Basque est un spot de récif exposé qui offre un surf assez régulier. L\'automne et l\'hiver sont les meilleures périodes de l\'année pour les vagues. Fonctionne mieux avec des vents offshore du sud-est. Les houles de fond et de vent sont également probables et la direction idéale de houle est du nord-ouest. Il n\'y a pas de spot de plage, seulement un récif droite. Meilleur autour de la marée basse. Il est très rarement bondé ici. Les dangers incluent des rochers, des courants et la pollution.'
+        }
+    ]
+    
+    return render_template('activites.html', surf_spots=surf_spots, chez_meme=chez_meme_coords)
 
 @app.route('/api/surf-forecast')
 def api_surf_forecast():
@@ -600,12 +768,12 @@ def get_tides_for_date(date_str):
 @app.route('/wall-of-shame')
 def wall_of_shame():
     wall_entries = WallOfShame.query.order_by(WallOfShame.display_order, WallOfShame.created_at.desc()).all()
-    return render_template('wall_of_shame.html', wall_entries=wall_entries)
+    return render_template('wall_of_shame.html', wall_entries=wall_entries, get_image_url=get_image_url)
 
 @app.route('/leaderboard')
 def leaderboard():
     leaders = Leaderboard.query.order_by(Leaderboard.rank_position, Leaderboard.visit_count.desc()).all()
-    return render_template('leaderboard.html', leaders=leaders)
+    return render_template('leaderboard.html', leaders=leaders, get_image_url=get_image_url)
 
 def verify_hcaptcha(token):
     """Vérifier le token hCaptcha"""
@@ -832,7 +1000,7 @@ def admin_delete_reservation(reservation_id):
 @admin_required
 def admin_photos():
     photos = Photo.query.order_by(Photo.display_order, Photo.created_at).all()
-    return render_template('admin_photos.html', photos=photos)
+    return render_template('admin_photos.html', photos=photos, get_image_url=get_image_url)
 
 @app.route('/admin/photos/upload', methods=['POST'])
 @admin_required
@@ -851,20 +1019,20 @@ def admin_upload_photos():
         
         for i, file in enumerate(files):
             if file and file.filename and allowed_file(file.filename):
-                # Générer un nom de fichier unique
+                # Récupérer la légende correspondante
+                caption = captions[i] if i < len(captions) else ""
+                
+                # Sauvegarder localement
                 filename = secure_filename(file.filename)
                 name, ext = os.path.splitext(filename)
                 unique_filename = f"{uuid.uuid4().hex}{ext}"
                 
-                # Sauvegarder le fichier
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+                file.seek(0)  # Remettre le curseur au début du fichier
                 file.save(file_path)
                 
                 # Redimensionner l'image
                 resize_image(file_path)
-                
-                # Récupérer la légende correspondante
-                caption = captions[i] if i < len(captions) else ""
                 
                 # Créer l'entrée en base de données
                 photo = Photo(
@@ -894,7 +1062,7 @@ def admin_delete_photo(photo_id):
     try:
         photo = Photo.query.get_or_404(photo_id)
         
-        # Supprimer le fichier physique
+        # Supprimer le fichier physique (local)
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], photo.filename)
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -953,7 +1121,7 @@ def admin_update_all_photos():
 @admin_required
 def admin_wall_of_shame():
     wall_entries = WallOfShame.query.order_by(WallOfShame.display_order, WallOfShame.created_at.desc()).all()
-    return render_template('admin_wall_of_shame.html', wall_entries=wall_entries)
+    return render_template('admin_wall_of_shame.html', wall_entries=wall_entries, get_image_url=get_image_url)
 
 @app.route('/admin/wall-of-shame/upload', methods=['POST'])
 @admin_required
@@ -968,32 +1136,31 @@ def admin_upload_wall_entry():
         
         file = request.files['photo']
         if file and file.filename and allowed_file(file.filename):
-            # Générer un nom de fichier simple basé sur le nombre d'entrées
+            existing_count = WallOfShame.query.count()
+            
+            # Sauvegarder localement
             filename = secure_filename(file.filename)
             name, ext = os.path.splitext(filename)
-            
-            # Compter le nombre d'images existantes pour générer un nom unique
-            existing_count = WallOfShame.query.count()
             simple_filename = f"img{existing_count + 1}{ext}"
             
-            # Sauvegarder le fichier
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], simple_filename)
             file.save(file_path)
             
             # Redimensionner l'image à 800px de large
             resize_image(file_path)
+            image_url = simple_filename
             
             # Créer l'entrée en base de données
             wall_entry = WallOfShame(
                 person_name=person_name,
-                image_url=simple_filename,
+                image_url=image_url,
                 display_order=existing_count
             )
             
             db.session.add(wall_entry)
             db.session.commit()
             
-            logger.info(f"Entrée Wall of Shame ajoutée pour {person_name} avec l'image {simple_filename}")
+            logger.info(f"Entrée Wall of Shame ajoutée pour {person_name} avec l'image {image_url}")
             return jsonify({'success': True, 'message': f'Entrée ajoutée pour {person_name} !'})
         else:
             return jsonify({'success': False, 'message': 'Format de fichier non autorisé'})
@@ -1009,7 +1176,7 @@ def admin_delete_wall_entry(entry_id):
     try:
         entry = WallOfShame.query.get_or_404(entry_id)
         
-        # Supprimer le fichier physique
+        # Supprimer le fichier physique (local)
         if entry.image_url:
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], entry.image_url)
             if os.path.exists(file_path):
@@ -1031,7 +1198,7 @@ def admin_delete_wall_entry(entry_id):
 @admin_required
 def admin_leaderboard():
     leaders = Leaderboard.query.order_by(Leaderboard.rank_position, Leaderboard.visit_count.desc()).all()
-    return render_template('admin_leaderboard.html', leaders=leaders)
+    return render_template('admin_leaderboard.html', leaders=leaders, get_image_url=get_image_url)
 
 @app.route('/admin/leaderboard/add', methods=['POST'])
 @admin_required
@@ -1043,7 +1210,7 @@ def admin_add_leader():
         if not person_name:
             return jsonify({'success': False, 'message': 'Le nom de la personne est requis'})
         
-        # Gérer l'upload de photo
+        # Gérer l'upload de photo (local)
         image_url = None
         if 'photo' in request.files:
             file = request.files['photo']
@@ -1088,12 +1255,13 @@ def admin_update_leader(leader_id):
         if 'photo' in request.files:
             file = request.files['photo']
             if file and file.filename and allowed_file(file.filename):
-                # Supprimer l'ancienne photo si elle existe
+                # Supprimer l'ancienne photo si elle existe (local)
                 if leader.image_url:
                     old_file_path = os.path.join(app.config['UPLOAD_FOLDER'], leader.image_url)
                     if os.path.exists(old_file_path):
                         os.remove(old_file_path)
                 
+                # Upload local
                 filename = secure_filename(file.filename)
                 name, ext = os.path.splitext(filename)
                 unique_filename = f"{uuid.uuid4().hex}{ext}"
@@ -1120,7 +1288,7 @@ def admin_delete_leader(leader_id):
     try:
         leader = Leaderboard.query.get_or_404(leader_id)
         
-        # Supprimer l'image si elle existe
+        # Supprimer l'image si elle existe (local)
         if leader.image_url:
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], leader.image_url)
             if os.path.exists(file_path):
@@ -1368,4 +1536,9 @@ if __name__ == '__main__':
             logger.warning(f"seed_data.py déjà exécuté ou erreur: {e}")
     
     logger.info(f"Démarrage du serveur Flask - Debug: {debug_mode}")
-    app.run(debug=debug_mode, host=host, port=port)
+    
+    # Forcer l'affichage des logs Werkzeug dans le terminal
+    import sys
+    logging.getLogger('werkzeug').handlers = [logging.StreamHandler(sys.stdout)]
+    
+    app.run(debug=debug_mode, host=host, port=port, use_reloader=True)

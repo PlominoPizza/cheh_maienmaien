@@ -78,3 +78,6 @@ with app.app_context():
    - Affiche **uniquement** les réservations avec statut "Validée" (approved)
    - Les réservations passées ne s'affichent pas
 
+
+
+

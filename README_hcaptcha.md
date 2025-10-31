@@ -70,3 +70,6 @@ Si vous souhaitez désactiver le captcha en développement, laissez simplement l
 
 **Attention :** Ne désactivez jamais le captcha en production !
 
+
+
+

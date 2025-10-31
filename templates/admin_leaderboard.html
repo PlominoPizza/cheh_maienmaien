@@ -48,7 +48,7 @@
             <div class="leader-item" data-id="{{ leader.id }}">
                 <div class="leader-display">
                     {% if leader.image_url %}
-                    <img src="{{ url_for('static', filename='uploads/images/' + leader.image_url) }}" 
+                    <img src="{{ get_image_url(leader.image_url) }}" 
                          alt="{{ leader.person_name }}" 
                          class="leader-thumb">
                     {% endif %}

@@ -38,7 +38,7 @@
             <div class="photos-grid">
                 {% for photo in photos %}
                 <div class="photo-item">
-                    <img src="{{ url_for('static', filename='uploads/images/' + photo.filename) }}" 
+                    <img src="{{ get_image_url(photo.filename) }}" 
                          alt="{{ photo.caption or 'Photo de la maison' }}">
                     {% if photo.caption %}
                     <div class="photo-caption">

@@ -188,49 +188,6 @@ class PopularActivities {
     }
 }
 
-// Gestion de la météo
-class WeatherWidget {
-    constructor() {
-        this.init();
-    }
-
-    init() {
-        this.bindEvents();
-        this.updateWeather();
-    }
-
-    bindEvents() {
-        // Actualisation automatique de la météo
-        setInterval(() => {
-            this.updateWeather();
-        }, 300000); // Toutes les 5 minutes
-    }
-
-    updateWeather() {
-        // Simulation de données météo (à remplacer par une vraie API)
-        const weatherData = [
-            { icon: '☀️', temp: '22°C', condition: 'Ensoleillé', activity: 'Parfait pour le surf et la randonnée' },
-            { icon: '⛅', temp: '20°C', condition: 'Partiellement nuageux', activity: 'Idéal pour le VTT' },
-            { icon: '🌧️', temp: '18°C', condition: 'Pluie légère', activity: 'Journée repos ou activités indoor' }
-        ];
-
-        document.querySelectorAll('.weather-card').forEach((card, index) => {
-            const data = weatherData[index];
-            if (data) {
-                const icon = card.querySelector('.weather-icon');
-                const temp = card.querySelector('.weather-info h3');
-                const condition = card.querySelector('.weather-info p');
-                const activity = card.querySelector('.weather-info span');
-
-                if (icon) icon.textContent = data.icon;
-                if (temp) temp.textContent = data.condition;
-                if (condition) condition.textContent = data.temp;
-                if (activity) activity.textContent = data.activity;
-            }
-        });
-    }
-}
-
 // Gestion des équipements
 class EquipmentManager {
     constructor() {
@@ -287,7 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.querySelector('.activities-section')) {
         new ActivitiesManager();
         new PopularActivities();
-        new WeatherWidget();
         new EquipmentManager();
     }
 });
