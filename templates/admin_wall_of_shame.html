@@ -39,8 +39,8 @@
         <div class="entries-grid">
             {% for entry in wall_entries %}
             <div class="entry-card" data-id="{{ entry.id }}">
-                {% if entry.image_url %}
-                <img src="{{ get_image_url(entry.image_url) }}" 
+                {% if entry.image_token or entry.image_url %}
+                <img src="{{ get_image_url(image_token=entry.image_token, image_type='wall') or get_image_url(image_filename=entry.image_url) }}" 
                      alt="{{ entry.person_name }}">
                 {% else %}
                 <div class="entry-placeholder">

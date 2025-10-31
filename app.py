@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 import uuid
 import logging
+from io import BytesIO
 
 # Configuration du logging - AFFICHAGE COMPLET DANS LE TERMINAL
 logging.basicConfig(
@@ -121,7 +122,10 @@ class Activity(db.Model):
 
 class Photo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(200), nullable=False)
+    filename = db.Column(db.String(200), nullable=False)  # Gardé pour compatibilité
+    image_token = db.Column(db.String(64), unique=True, index=True)  # Token aléatoire sécurisé
+    image_data = db.Column(db.LargeBinary)  # Données binaires de l'image
+    mime_type = db.Column(db.String(50))  # Type MIME (image/jpeg, image/png, etc.)
     caption = db.Column(db.String(200))
     display_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -129,7 +133,10 @@ class Photo(db.Model):
 class WallOfShame(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     person_name = db.Column(db.String(100), nullable=False)
-    image_url = db.Column(db.String(200))
+    image_token = db.Column(db.String(64), unique=True, index=True)  # Token aléatoire sécurisé
+    image_data = db.Column(db.LargeBinary)  # Données binaires de l'image
+    mime_type = db.Column(db.String(50))  # Type MIME
+    image_url = db.Column(db.String(200))  # Gardé pour rétrocompatibilité
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     display_order = db.Column(db.Integer, default=0)
 
@@ -151,16 +158,55 @@ class Leaderboard(db.Model):
     visit_count = db.Column(db.Integer, default=0)
     rank_position = db.Column(db.Integer, default=0)
     last_visit = db.Column(db.Date)
-    image_url = db.Column(db.String(200))
+    image_token = db.Column(db.String(64), unique=True, index=True)  # Token aléatoire sécurisé
+    image_data = db.Column(db.LargeBinary)  # Données binaires de l'image
+    mime_type = db.Column(db.String(50))  # Type MIME
+    image_url = db.Column(db.String(200))  # Gardé pour rétrocompatibilité
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # Fonctions utilitaires pour les images
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def get_image_url(image_filename):
-    """Retourne toujours le chemin local de l'image uploadée."""
-    return f"/static/uploads/images/{image_filename}"
+def get_image_url(image_filename=None, image_token=None, image_type=None):
+    """
+    Retourne l'URL de l'image.
+    Priorité : token DB > fichier local
+    """
+    if image_token and image_type:
+        return f"/image/{image_token}/{image_type}"
+    elif image_filename:
+        return f"/static/uploads/images/{image_filename}"
+    return None
+
+def resize_image_in_memory(image_bytes, fixed_width=800):
+    """Redimensionne une image en mémoire à une largeur fixe de 800px en gardant les proportions"""
+    try:
+        img = Image.open(BytesIO(image_bytes))
+        # Si l'image est déjà plus petite ou égale à 800px, on la laisse telle quelle
+        if img.width <= fixed_width:
+            return image_bytes
+        
+        # Calculer la nouvelle hauteur en gardant les proportions
+        ratio = fixed_width / img.width
+        new_height = int(img.height * ratio)
+        new_size = (fixed_width, new_height)
+        
+        # Redimensionner
+        resized_img = img.resize(new_size, Image.Resampling.LANCZOS)
+        
+        # Sauvegarder en mémoire
+        output = BytesIO()
+        format_name = img.format or 'JPEG'
+        if format_name == 'PNG':
+            resized_img.save(output, format='PNG', optimize=True)
+        else:
+            resized_img.save(output, format='JPEG', quality=85, optimize=True)
+        
+        return output.getvalue()
+    except Exception as e:
+        logger.error(f"Erreur lors du redimensionnement en mémoire: {e}")
+        return image_bytes  # Retourner l'image originale en cas d'erreur
 
 def resize_image(image_path, fixed_width=800):
     """Redimensionne une image à une largeur fixe de 800px en gardant les proportions"""
@@ -219,7 +265,7 @@ def add_security_headers(response):
     if '/wall-of-shame' in request.path:
         response.headers['X-Robots-Tag'] = 'noindex, nofollow, noimageindex, noarchive, nosnippet'
     
-    # Pour toutes les images uploadées (local ou Cloudinary)
+    # Pour toutes les images uploadées
     if '/static/uploads/images/' in request.path:
         response.headers['X-Robots-Tag'] = 'noindex, nofollow, noimageindex'
     
@@ -286,6 +332,37 @@ def initialize_db():
                             db.session.execute(text("ALTER TABLE wall_of_shame ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0"))
                         else:  # SQLite
                             logger.info("SQLite ne supporte pas ALTER TABLE ADD COLUMN. Utilisez migrate_db.py pour migrer.")
+                        db.session.commit()
+                
+                # Migration v2.1.0 - Ajouter les colonnes pour stockage images en DB
+                if 'photo' in existing_tables:
+                    columns = [col['name'] for col in inspector.get_columns('photo')]
+                    if 'image_token' not in columns and db.engine.dialect.name == 'postgresql':
+                        logger.info("Migration v2.1.0: Ajout des colonnes image_token, image_data, mime_type à Photo")
+                        db.session.execute(text("ALTER TABLE photo ADD COLUMN IF NOT EXISTS image_token VARCHAR(64)"))
+                        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_photo_image_token ON photo(image_token)"))
+                        db.session.execute(text("ALTER TABLE photo ADD COLUMN IF NOT EXISTS image_data BYTEA"))
+                        db.session.execute(text("ALTER TABLE photo ADD COLUMN IF NOT EXISTS mime_type VARCHAR(50)"))
+                        db.session.commit()
+                
+                if 'wall_of_shame' in existing_tables:
+                    columns = [col['name'] for col in inspector.get_columns('wall_of_shame')]
+                    if 'image_token' not in columns and db.engine.dialect.name == 'postgresql':
+                        logger.info("Migration v2.1.0: Ajout des colonnes image_token, image_data, mime_type à WallOfShame")
+                        db.session.execute(text("ALTER TABLE wall_of_shame ADD COLUMN IF NOT EXISTS image_token VARCHAR(64)"))
+                        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_wall_of_shame_image_token ON wall_of_shame(image_token)"))
+                        db.session.execute(text("ALTER TABLE wall_of_shame ADD COLUMN IF NOT EXISTS image_data BYTEA"))
+                        db.session.execute(text("ALTER TABLE wall_of_shame ADD COLUMN IF NOT EXISTS mime_type VARCHAR(50)"))
+                        db.session.commit()
+                
+                if 'leaderboard' in existing_tables:
+                    columns = [col['name'] for col in inspector.get_columns('leaderboard')]
+                    if 'image_token' not in columns and db.engine.dialect.name == 'postgresql':
+                        logger.info("Migration v2.1.0: Ajout des colonnes image_token, image_data, mime_type à Leaderboard")
+                        db.session.execute(text("ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS image_token VARCHAR(64)"))
+                        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_leaderboard_image_token ON leaderboard(image_token)"))
+                        db.session.execute(text("ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS image_data BYTEA"))
+                        db.session.execute(text("ALTER TABLE leaderboard ADD COLUMN IF NOT EXISTS mime_type VARCHAR(50)"))
                         db.session.commit()
             except Exception as migration_error:
                 logger.warning(f"Migration automatique: {migration_error}")
@@ -395,6 +472,68 @@ def initialize_db():
 def robots_txt():
     """Sert le fichier robots.txt pour empêcher l'indexation des images du wall of shame"""
     return app.send_static_file('robots.txt')
+
+@app.route('/image/<token>/<image_type>')
+def get_image_from_db(token, image_type):
+    """
+    Route sécurisée pour servir les images depuis la base de données.
+    Utilise des tokens aléatoires de 64 caractères pour éviter l'indexation.
+    """
+    try:
+        # Vérification de base du token (protection contre brute force)
+        if len(token) != 64:
+            logger.warning(f"Tentative d'accès avec token de longueur invalide: {len(token)}")
+            return '', 404
+        
+        # Vérification optionnelle du Referer (log pour sécurité, mais pas de blocage strict)
+        referer = request.headers.get('Referer', '')
+        host = request.headers.get('Host', '')
+        if referer and host and not referer.startswith(f'https://{host}') and not referer.startswith(f'http://{host}'):
+            logger.warning(f"Tentative d'accès image depuis un domaine externe: {referer} (token: {token[:10]}...)")
+            # On ne bloque pas complètement pour compatibilité navigateurs/mode développement
+            # mais on log pour monitoring
+        
+        # Récupération depuis la base de données
+        image_data = None
+        mime_type = None
+        
+        if image_type == 'photo':
+            photo = Photo.query.filter_by(image_token=token).first()
+            if photo and photo.image_data:
+                image_data = photo.image_data
+                mime_type = photo.mime_type or 'image/jpeg'
+        
+        elif image_type == 'wall':
+            entry = WallOfShame.query.filter_by(image_token=token).first()
+            if entry and entry.image_data:
+                image_data = entry.image_data
+                mime_type = entry.mime_type or 'image/jpeg'
+        
+        elif image_type == 'leader':
+            leader = Leaderboard.query.filter_by(image_token=token).first()
+            if leader and leader.image_data:
+                image_data = leader.image_data
+                mime_type = leader.mime_type or 'image/jpeg'
+        
+        else:
+            logger.warning(f"Type d'image invalide: {image_type}")
+            return '', 404
+        
+        if not image_data:
+            return '', 404
+        
+        # Headers de sécurité pour empêcher l'indexation
+        response = Response(image_data, mimetype=mime_type)
+        response.headers['X-Robots-Tag'] = 'noindex, nofollow, noimageindex, noarchive, nosnippet'
+        response.headers['Cache-Control'] = 'private, max-age=3600'  # Cache privé seulement
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de la récupération de l'image: {e}")
+        return '', 404
 
 @app.route('/')
 def index():
@@ -1022,21 +1161,39 @@ def admin_upload_photos():
                 # Récupérer la légende correspondante
                 caption = captions[i] if i < len(captions) else ""
                 
-                # Sauvegarder localement
+                # Lire le fichier en mémoire
+                file.seek(0)
+                image_bytes = file.read()
+                
+                # Déterminer le type MIME
+                mime_type = file.content_type or 'image/jpeg'
+                if not mime_type.startswith('image/'):
+                    # Détecter depuis l'extension
+                    ext = os.path.splitext(file.filename)[1].lower()
+                    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', 
+                                  '.gif': 'image/gif', '.webp': 'image/webp'}
+                    mime_type = mime_types.get(ext, 'image/jpeg')
+                
+                # Redimensionner l'image en mémoire
+                resized_image_bytes = resize_image_in_memory(image_bytes, fixed_width=800)
+                
+                # Générer un token sécurisé unique (64 caractères)
+                image_token = secrets.token_urlsafe(48)  # Génère ~64 caractères
+                # Vérifier l'unicité (très improbable mais on vérifie)
+                while Photo.query.filter_by(image_token=image_token).first():
+                    image_token = secrets.token_urlsafe(48)
+                
+                # Générer un nom de fichier unique pour compatibilité
                 filename = secure_filename(file.filename)
                 name, ext = os.path.splitext(filename)
                 unique_filename = f"{uuid.uuid4().hex}{ext}"
                 
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-                file.seek(0)  # Remettre le curseur au début du fichier
-                file.save(file_path)
-                
-                # Redimensionner l'image
-                resize_image(file_path)
-                
-                # Créer l'entrée en base de données
+                # Créer l'entrée en base de données avec données binaires
                 photo = Photo(
                     filename=unique_filename,
+                    image_token=image_token,
+                    image_data=resized_image_bytes,
+                    mime_type=mime_type,
                     caption=caption,
                     display_order=Photo.query.count() + uploaded_count
                 )
@@ -1138,29 +1295,45 @@ def admin_upload_wall_entry():
         if file and file.filename and allowed_file(file.filename):
             existing_count = WallOfShame.query.count()
             
-            # Sauvegarder localement
+            # Lire le fichier en mémoire
+            file.seek(0)
+            image_bytes = file.read()
+            
+            # Déterminer le type MIME
+            mime_type = file.content_type or 'image/jpeg'
+            if not mime_type.startswith('image/'):
+                ext = os.path.splitext(file.filename)[1].lower()
+                mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', 
+                              '.gif': 'image/gif', '.webp': 'image/webp'}
+                mime_type = mime_types.get(ext, 'image/jpeg')
+            
+            # Redimensionner l'image en mémoire
+            resized_image_bytes = resize_image_in_memory(image_bytes, fixed_width=800)
+            
+            # Générer un token sécurisé unique (64 caractères)
+            image_token = secrets.token_urlsafe(48)
+            while WallOfShame.query.filter_by(image_token=image_token).first():
+                image_token = secrets.token_urlsafe(48)
+            
+            # Générer un nom de fichier pour compatibilité
             filename = secure_filename(file.filename)
             name, ext = os.path.splitext(filename)
             simple_filename = f"img{existing_count + 1}{ext}"
             
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], simple_filename)
-            file.save(file_path)
-            
-            # Redimensionner l'image à 800px de large
-            resize_image(file_path)
-            image_url = simple_filename
-            
-            # Créer l'entrée en base de données
+            # Créer l'entrée en base de données avec données binaires
             wall_entry = WallOfShame(
                 person_name=person_name,
-                image_url=image_url,
+                image_token=image_token,
+                image_data=resized_image_bytes,
+                mime_type=mime_type,
+                image_url=simple_filename,  # Gardé pour rétrocompatibilité
                 display_order=existing_count
             )
             
             db.session.add(wall_entry)
             db.session.commit()
             
-            logger.info(f"Entrée Wall of Shame ajoutée pour {person_name} avec l'image {image_url}")
+            logger.info(f"Entrée Wall of Shame ajoutée pour {person_name} avec l'image token {image_token[:10]}...")
             return jsonify({'success': True, 'message': f'Entrée ajoutée pour {person_name} !'})
         else:
             return jsonify({'success': False, 'message': 'Format de fichier non autorisé'})
@@ -1210,26 +1383,49 @@ def admin_add_leader():
         if not person_name:
             return jsonify({'success': False, 'message': 'Le nom de la personne est requis'})
         
-        # Gérer l'upload de photo (local)
+        # Gérer l'upload de photo (stockage en DB)
+        image_token = None
+        image_data = None
+        mime_type = None
         image_url = None
+        
         if 'photo' in request.files:
             file = request.files['photo']
             if file and file.filename and allowed_file(file.filename):
+                # Lire le fichier en mémoire
+                file.seek(0)
+                image_bytes = file.read()
+                
+                # Déterminer le type MIME
+                mime_type = file.content_type or 'image/jpeg'
+                if not mime_type.startswith('image/'):
+                    ext = os.path.splitext(file.filename)[1].lower()
+                    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', 
+                                  '.gif': 'image/gif', '.webp': 'image/webp'}
+                    mime_type = mime_types.get(ext, 'image/jpeg')
+                
+                # Redimensionner l'image en mémoire
+                image_data = resize_image_in_memory(image_bytes, fixed_width=800)
+                
+                # Générer un token sécurisé unique
+                image_token = secrets.token_urlsafe(48)
+                while Leaderboard.query.filter_by(image_token=image_token).first():
+                    image_token = secrets.token_urlsafe(48)
+                
+                # Générer un nom de fichier pour compatibilité
                 filename = secure_filename(file.filename)
                 name, ext = os.path.splitext(filename)
                 unique_filename = f"{uuid.uuid4().hex}{ext}"
-                
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-                file.save(file_path)
-                
-                resize_image(file_path)
                 image_url = unique_filename
         
         leader = Leaderboard(
             person_name=person_name,
             visit_count=visit_count,
             rank_position=Leaderboard.query.count() + 1,
-            image_url=image_url
+            image_token=image_token,
+            image_data=image_data,
+            mime_type=mime_type,
+            image_url=image_url  # Gardé pour rétrocompatibilité
         )
         
         db.session.add(leader)
@@ -1251,25 +1447,39 @@ def admin_update_leader(leader_id):
         leader.person_name = request.form.get('person_name', leader.person_name)
         leader.visit_count = int(request.form.get('visit_count', leader.visit_count))
         
-        # Gérer l'upload de photo
+        # Gérer l'upload de photo (stockage en DB)
         if 'photo' in request.files:
             file = request.files['photo']
             if file and file.filename and allowed_file(file.filename):
-                # Supprimer l'ancienne photo si elle existe (local)
-                if leader.image_url:
-                    old_file_path = os.path.join(app.config['UPLOAD_FOLDER'], leader.image_url)
-                    if os.path.exists(old_file_path):
-                        os.remove(old_file_path)
+                # Lire le fichier en mémoire
+                file.seek(0)
+                image_bytes = file.read()
                 
-                # Upload local
+                # Déterminer le type MIME
+                mime_type = file.content_type or 'image/jpeg'
+                if not mime_type.startswith('image/'):
+                    ext = os.path.splitext(file.filename)[1].lower()
+                    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', 
+                                  '.gif': 'image/gif', '.webp': 'image/webp'}
+                    mime_type = mime_types.get(ext, 'image/jpeg')
+                
+                # Redimensionner l'image en mémoire
+                image_data = resize_image_in_memory(image_bytes, fixed_width=800)
+                
+                # Générer un nouveau token sécurisé unique
+                image_token = secrets.token_urlsafe(48)
+                while Leaderboard.query.filter_by(image_token=image_token).first():
+                    image_token = secrets.token_urlsafe(48)
+                
+                # Mettre à jour les champs
+                leader.image_token = image_token
+                leader.image_data = image_data
+                leader.mime_type = mime_type
+                
+                # Générer un nom de fichier pour compatibilité
                 filename = secure_filename(file.filename)
                 name, ext = os.path.splitext(filename)
                 unique_filename = f"{uuid.uuid4().hex}{ext}"
-                
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-                file.save(file_path)
-                
-                resize_image(file_path)
                 leader.image_url = unique_filename
         
         db.session.commit()

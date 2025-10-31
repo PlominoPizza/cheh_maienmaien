@@ -47,8 +47,8 @@
             {% for leader in leaders %}
             <div class="leader-item" data-id="{{ leader.id }}">
                 <div class="leader-display">
-                    {% if leader.image_url %}
-                    <img src="{{ get_image_url(leader.image_url) }}" 
+                    {% if leader.image_token or leader.image_url %}
+                    <img src="{{ get_image_url(image_token=leader.image_token, image_type='leader') or get_image_url(image_filename=leader.image_url) }}" 
                          alt="{{ leader.person_name }}" 
                          class="leader-thumb">
                     {% endif %}

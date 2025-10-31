@@ -15,9 +15,9 @@
         <div class="leaderboard-container">
             {% for leader in leaders %}
             <div class="leader-card {% if loop.index <= 3 %}top-{{ loop.index }}{% endif %}">
-                {% if leader.image_url %}
+                {% if leader.image_token or leader.image_url %}
                 <div class="leader-photo">
-                    <img src="{{ get_image_url(leader.image_url) }}" 
+                    <img src="{{ get_image_url(image_token=leader.image_token, image_type='leader') or get_image_url(image_filename=leader.image_url) }}" 
                          alt="{{ leader.person_name }}">
                 </div>
                 {% endif %}
